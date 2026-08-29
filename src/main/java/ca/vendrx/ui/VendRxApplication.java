@@ -24,296 +24,329 @@ import java.util.List;
 
 public class VendRxApplication extends Application {
 
-    private TransmissionRepository repository;
-    private VendRxService vendRxService;
-    private AudioDeviceService audioDeviceService;
+        private TransmissionRepository repository;
+        private VendRxService vendRxService;
+        private AudioDeviceService audioDeviceService;
 
-    private ComboBox<Mixer.Info> inputComboBox;
+        private ComboBox<Mixer.Info> inputComboBox;
 
-    private Button startButton;
-    private Button stopButton;
+        private Button startButton;
+        private Button stopButton;
 
-    private Label statusLabel;
+        private Label statusLabel;
+        private Label detailStartLabel;
+        private Label detailEndLabel;
+        private Label detailDurationLabel;
+        private Label detailAverageRmsLabel;
+        private Label detailMaxRmsLabel;
+        private Label detailFileLabel;
 
-    private TableView<Transmission> transmissionTable;
+        private TableView<Transmission> transmissionTable;
 
-    @Override
-    public void start(Stage stage) {
+        @Override
+        public void start(Stage stage) {
+        
+                        initializeServices();
 
-        initializeServices();
+                BorderPane root =
+                        new BorderPane();
 
-        BorderPane root =
-                new BorderPane();
-
-        root.setPadding(
-                new Insets(15)
-        );
-
-        root.setTop(
-                createTopPanel()
-        );
-
-        root.setCenter(
-                createTransmissionPanel()
-        );
-
-        root.setBottom(
-                createStatusBar()
-        );
-
-        Scene scene =
-                new Scene(
-                        root,
-                        800,
-                        500
+                root.setPadding(
+                        new Insets(15)
                 );
 
-        stage.setTitle(
-                "VendRx"
-        );
-
-        stage.setScene(scene);
-
-        stage.show();
-
-        loadAudioDevices();
-        loadTransmissions();
-    }
-
-    private void initializeServices() {
-
-        repository =
-                new TransmissionRepository();
-
-        repository.initialize();
-
-        AudioConfig audioConfig =
-                AudioConfig.defaultConfig();
-
-        vendRxService =
-                new VendRxService(
-                        audioConfig,
-                        repository
+                root.setTop(
+                        createTopPanel()
                 );
 
-        vendRxService.setAudioMonitorListener(
-                transmission ->
-                        Platform.runLater(
-                                () ->
-                                        transmissionTable
-                                                .getItems()
-                                                .add(0, transmission)
-                        )
-        );
-
-        audioDeviceService =
-                new AudioDeviceService();
-    }
-
-    private Pane createTopPanel() {
-
-        Label inputLabel =
-                new Label(
-                        "Audio input:"
+                root.setCenter(
+                        createTransmissionPanel()
                 );
 
-        inputComboBox =
-                new ComboBox<>();
+                root.setBottom(
+                        createStatusBar()
+                );
 
-        inputComboBox.setPrefWidth(
-                400
-        );
+                Scene scene =
+                        new Scene(
+                                root,
+                                800,
+                                500
+                        );
 
-        inputComboBox.setCellFactory(
-                listView ->
+                stage.setTitle(
+                        "VendRx"
+                );
+
+                stage.setScene(scene);
+
+                stage.show();
+
+                loadAudioDevices();
+                loadTransmissions();
+        }
+
+        private void initializeServices() {
+
+                repository =
+                        new TransmissionRepository();
+
+                repository.initialize();
+
+                AudioConfig audioConfig =
+                        AudioConfig.defaultConfig();
+
+                vendRxService =
+                        new VendRxService(
+                                audioConfig,
+                                repository
+                        );
+
+                vendRxService.setAudioMonitorListener(
+                        transmission ->
+                                Platform.runLater(
+                                        () ->
+                                                transmissionTable
+                                                        .getItems()
+                                                        .add(0, transmission)
+                                )
+                );
+
+                audioDeviceService =
+                        new AudioDeviceService();
+        }
+
+        private Pane createTopPanel() {
+
+                Label inputLabel =
+                        new Label(
+                                "Audio input:"
+                        );
+
+                inputComboBox =
+                        new ComboBox<>();
+
+                inputComboBox.setPrefWidth(
+                        400
+                );
+
+                inputComboBox.setCellFactory(
+                        listView ->
+                                createMixerCell()
+                );
+
+                inputComboBox.setButtonCell(
                         createMixerCell()
-        );
-
-        inputComboBox.setButtonCell(
-                createMixerCell()
-        );
-
-        startButton =
-                new Button(
-                        "Start monitoring"
                 );
 
-        stopButton =
-                new Button(
-                        "Stop"
+                startButton =
+                        new Button(
+                                "Start monitoring"
+                        );
+
+                stopButton =
+                        new Button(
+                                "Stop"
+                        );
+
+                stopButton.setDisable(true);
+
+                startButton.setOnAction(
+                        event ->
+                                startMonitoring()
                 );
 
-        stopButton.setDisable(true);
-
-        startButton.setOnAction(
-                event ->
-                        startMonitoring()
-        );
-
-        stopButton.setOnAction(
-                event ->
-                        stopMonitoring()
-        );
-
-        HBox controls =
-                new HBox(
-                        10,
-                        inputLabel,
-                        inputComboBox,
-                        startButton,
-                        stopButton
+                stopButton.setOnAction(
+                        event ->
+                                stopMonitoring()
                 );
 
-        controls.setPadding(
-                new Insets(
-                        0,
-                        0,
-                        15,
-                        0
-                )
-        );
+                HBox controls =
+                        new HBox(
+                                10,
+                                inputLabel,
+                                inputComboBox,
+                                startButton,
+                                stopButton
+                        );
 
-        return controls;
-    }
-
-    private ListCell<Mixer.Info> createMixerCell() {
-
-        return new ListCell<>() {
-
-            @Override
-            protected void updateItem(
-                    Mixer.Info mixerInfo,
-                    boolean empty
-            ) {
-
-                super.updateItem(
-                        mixerInfo,
-                        empty
+                controls.setPadding(
+                        new Insets(
+                                0,
+                                0,
+                                15,
+                                0
+                        )
                 );
 
-                if (
-                        empty
-                        || mixerInfo == null
+                return controls;
+        }
+
+        private ListCell<Mixer.Info> createMixerCell() {
+
+                return new ListCell<>() {
+
+                @Override
+                protected void updateItem(
+                        Mixer.Info mixerInfo,
+                        boolean empty
                 ) {
 
-                    setText(null);
+                        super.updateItem(
+                                mixerInfo,
+                                empty
+                        );
 
-                } else {
+                        if (
+                                empty
+                                || mixerInfo == null
+                        ) {
 
-                    setText(
-                            mixerInfo.getName()
-                    );
+                        setText(null);
+
+                        } else {
+
+                        setText(
+                                mixerInfo.getName()
+                        );
+                        }
                 }
-            }
-        };
-    }
+                };
+        }
 
-    private Pane createTransmissionPanel() {
+        private Pane createTransmissionPanel() {
 
-        Label title =
-                new Label("Transmissions");
+                Label title =
+                        new Label("Transmissions");
 
-        transmissionTable =
-                new TableView<>();
+                transmissionTable =
+                        new TableView<>();
 
-        transmissionTable.setColumnResizePolicy(
-                TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
-        );
-
-        DateTimeFormatter dateFormatter =
-                DateTimeFormatter.ofPattern(
-                        "yyyy-MM-dd HH:mm:ss"
+                transmissionTable.setColumnResizePolicy(
+                        TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
                 );
 
-        TableColumn<Transmission, String> timeColumn =
-                new TableColumn<>("Time");
+                DateTimeFormatter dateFormatter =
+                        DateTimeFormatter.ofPattern(
+                                "yyyy-MM-dd HH:mm:ss"
+                        );
 
-        timeColumn.setCellValueFactory(
-                cellData ->
-                        new SimpleStringProperty(
-                                cellData
-                                        .getValue()
-                                        .getStartTime()
-                                        .format(dateFormatter)
-                        )
-        );
+                TableColumn<Transmission, String> timeColumn =
+                        new TableColumn<>("Time");
 
-        TableColumn<Transmission, Number> durationColumn =
-                new TableColumn<>("Duration (s)");
-
-        durationColumn.setCellValueFactory(
-                cellData ->
-                        new SimpleDoubleProperty(
-                                cellData
-                                        .getValue()
-                                        .getDuration()
-                                        .toMillis()
-                                        / 1000.0
-                        )
-        );
-
-        TableColumn<Transmission, Number> averageRmsColumn =
-                new TableColumn<>("Avg RMS");
-
-        averageRmsColumn.setCellValueFactory(
-                cellData ->
-                        new SimpleDoubleProperty(
-                                cellData
-                                        .getValue()
-                                        .getAverageRms()
-                        )
-        );
-
-        TableColumn<Transmission, Number> maxRmsColumn =
-                new TableColumn<>("Max RMS");
-
-        maxRmsColumn.setCellValueFactory(
-                cellData ->
-                        new SimpleDoubleProperty(
-                                cellData
-                                        .getValue()
-                                        .getMaxRms()
-                        )
-        );
-
-        TableColumn<Transmission, String> fileColumn =
-                new TableColumn<>("File");
-
-        fileColumn.setCellValueFactory(
-                cellData ->
-                        new SimpleStringProperty(
-                                cellData
-                                        .getValue()
-                                        .getFilePath()
-                                        .getFileName()
-                                        .toString()
-                        )
-        );
-
-        transmissionTable
-                .getColumns()
-                .addAll(
-                        timeColumn,
-                        durationColumn,
-                        averageRmsColumn,
-                        maxRmsColumn,
-                        fileColumn
+                timeColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleStringProperty(
+                                        cellData
+                                                .getValue()
+                                                .getStartTime()
+                                                .format(dateFormatter)
+                                )
                 );
 
-        VBox panel =
-                new VBox(
-                        10,
-                        title,
-                        transmissionTable
+                TableColumn<Transmission, Number> durationColumn =
+                        new TableColumn<>("Duration (s)");
+
+                durationColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleDoubleProperty(
+                                        cellData
+                                                .getValue()
+                                                .getDuration()
+                                                .toMillis()
+                                                / 1000.0
+                                )
                 );
 
-        VBox.setVgrow(
-                transmissionTable,
-                Priority.ALWAYS
-        );
+                TableColumn<Transmission, Number> averageRmsColumn =
+                        new TableColumn<>("Avg RMS");
 
-        return panel;
-    }
+                averageRmsColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleDoubleProperty(
+                                        cellData
+                                                .getValue()
+                                                .getAverageRms()
+                                )
+                );
+
+                TableColumn<Transmission, Number> maxRmsColumn =
+                        new TableColumn<>("Max RMS");
+
+                maxRmsColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleDoubleProperty(
+                                        cellData
+                                                .getValue()
+                                                .getMaxRms()
+                                )
+                );
+
+                TableColumn<Transmission, String> fileColumn =
+                        new TableColumn<>("File");
+
+                fileColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleStringProperty(
+                                        cellData
+                                                .getValue()
+                                                .getFilePath()
+                                                .getFileName()
+                                                .toString()
+                                )
+                );
+
+                transmissionTable
+                        .getColumns()
+                        .addAll(
+                                timeColumn,
+                                durationColumn,
+                                averageRmsColumn,
+                                maxRmsColumn,
+                                fileColumn
+                        );
+
+                transmissionTable
+                        .getSelectionModel()
+                        .selectedItemProperty()
+                        .addListener(
+                                (observable, oldValue, newValue) -> {
+
+                                        if (newValue != null) {
+                                        showTransmissionDetails(
+                                                newValue
+                                        );
+                                        }
+                                }
+                        );
+
+                VBox tablePanel =
+                        new VBox(
+                                10,
+                                title,
+                                transmissionTable
+                        );
+
+                VBox.setVgrow(
+                        transmissionTable,
+                        Priority.ALWAYS
+                );
+
+                Pane detailPanel =
+                        createTransmissionDetailPanel();
+
+                SplitPane splitPane =
+                        new SplitPane(
+                                tablePanel,
+                                detailPanel
+                        );
+
+                splitPane.setDividerPositions(
+                        0.68
+                );
+
+                return splitPane;
+        }
 
     private Pane createStatusBar() {
 
