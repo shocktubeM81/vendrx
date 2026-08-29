@@ -5,348 +5,869 @@ import ca.vendrx.config.AudioConfig;
 import ca.vendrx.database.TransmissionRepository;
 import ca.vendrx.model.Transmission;
 import ca.vendrx.service.VendRxService;
+import ca.vendrx.service.AudioPlaybackService;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleStringProperty;
+
+import java.nio.file.Files;
+import java.time.format.DateTimeFormatter;
 
 import javax.sound.sampled.Mixer;
 import java.util.List;
 
 public class VendRxApplication extends Application {
 
-    private TransmissionRepository repository;
-    private VendRxService vendRxService;
-    private AudioDeviceService audioDeviceService;
+        private TransmissionRepository repository;
+        private VendRxService vendRxService;
+        private AudioDeviceService audioDeviceService;
+        private AudioPlaybackService audioPlaybackService;
 
-    private ComboBox<Mixer.Info> inputComboBox;
+        private ComboBox<Mixer.Info> inputComboBox;
 
-    private Button startButton;
-    private Button stopButton;
+        private Button startButton;
+        private Button stopButton;
+        private Button playButton;
+        private Button stopPlaybackButton;
+        private Button deleteButton;
 
-    private Label statusLabel;
+        private Label statusLabel;
+        private Label detailStartLabel;
+        private Label detailEndLabel;
+        private Label detailDurationLabel;
+        private Label detailAverageRmsLabel;
+        private Label detailMaxRmsLabel;
+        private Label detailFileLabel;
 
-    private ListView<String> transmissionList;
+        private TableView<Transmission> transmissionTable;
 
-    @Override
-    public void start(Stage stage) {
+        @Override
+        public void start(Stage stage) {
+        
+                initializeServices();
 
-        initializeServices();
+                BorderPane root =
+                        new BorderPane();
 
-        BorderPane root =
-                new BorderPane();
-
-        root.setPadding(
-                new Insets(15)
-        );
-
-        root.setTop(
-                createTopPanel()
-        );
-
-        root.setCenter(
-                createTransmissionPanel()
-        );
-
-        root.setBottom(
-                createStatusBar()
-        );
-
-        Scene scene =
-                new Scene(
-                        root,
-                        800,
-                        500
+                root.setPadding(
+                        new Insets(15)
                 );
 
-        stage.setTitle(
-                "VendRx"
-        );
-
-        stage.setScene(scene);
-
-        stage.show();
-
-        loadAudioDevices();
-        loadTransmissions();
-    }
-
-    private void initializeServices() {
-
-        repository =
-                new TransmissionRepository();
-
-        repository.initialize();
-
-        AudioConfig audioConfig =
-                AudioConfig.defaultConfig();
-
-        vendRxService =
-                new VendRxService(
-                        audioConfig,
-                        repository
+                root.setTop(
+                        createTopPanel()
                 );
 
-        audioDeviceService =
-                new AudioDeviceService();
-    }
-
-    private Pane createTopPanel() {
-
-        Label inputLabel =
-                new Label(
-                        "Audio input:"
+                root.setCenter(
+                        createTransmissionPanel()
                 );
 
-        inputComboBox =
-                new ComboBox<>();
+                root.setBottom(
+                        createStatusBar()
+                );
 
-        inputComboBox.setPrefWidth(
-                400
-        );
+                Scene scene =
+                        new Scene(
+                                root,
+                                800,
+                                500
+                        );
 
-        inputComboBox.setCellFactory(
-                listView ->
+                stage.setTitle(
+                        "VendRx"
+                );
+
+                stage.setScene(scene);
+
+                stage.show();
+
+                loadAudioDevices();
+                loadTransmissions();
+        }
+
+        private void initializeServices() {
+
+                repository =
+                        new TransmissionRepository();
+
+                repository.initialize();
+
+                AudioConfig audioConfig =
+                        AudioConfig.defaultConfig();
+
+                vendRxService =
+                        new VendRxService(
+                                audioConfig,
+                                repository
+                        );
+
+                vendRxService.setAudioMonitorListener(
+                        transmission ->
+                                Platform.runLater(
+                                        () ->
+                                                transmissionTable
+                                                        .getItems()
+                                                        .add(0, transmission)
+                                )
+                );
+
+                audioDeviceService =
+                        new AudioDeviceService();
+
+                audioPlaybackService =
+                        new AudioPlaybackService();
+
+                audioPlaybackService.setOnPlaybackStopped(
+                        () ->
+                                Platform.runLater(
+                                        () -> {
+
+                                        playButton.setDisable(
+                                                transmissionTable
+                                                        .getSelectionModel()
+                                                        .getSelectedItem()
+                                                        == null
+                                        );
+
+                                        stopPlaybackButton.setDisable(true);
+
+                                        restoreStatus();
+                                        }
+                                )
+                );
+        }
+
+        private Pane createTopPanel() {
+
+                Label inputLabel =
+                        new Label(
+                                "Audio input:"
+                        );
+
+                inputComboBox =
+                        new ComboBox<>();
+
+                inputComboBox.setPrefWidth(
+                        400
+                );
+
+                inputComboBox.setCellFactory(
+                        listView ->
+                                createMixerCell()
+                );
+
+                inputComboBox.setButtonCell(
                         createMixerCell()
-        );
-
-        inputComboBox.setButtonCell(
-                createMixerCell()
-        );
-
-        startButton =
-                new Button(
-                        "Start monitoring"
                 );
 
-        stopButton =
-                new Button(
-                        "Stop"
+                startButton =
+                        new Button(
+                                "Start monitoring"
+                        );
+
+                stopButton =
+                        new Button(
+                                "Stop"
+                        );
+
+                stopButton.setDisable(true);
+
+                startButton.setOnAction(
+                        event ->
+                                startMonitoring()
                 );
 
-        stopButton.setDisable(true);
-
-        startButton.setOnAction(
-                event ->
-                        startMonitoring()
-        );
-
-        stopButton.setOnAction(
-                event ->
-                        stopMonitoring()
-        );
-
-        HBox controls =
-                new HBox(
-                        10,
-                        inputLabel,
-                        inputComboBox,
-                        startButton,
-                        stopButton
+                stopButton.setOnAction(
+                        event ->
+                                stopMonitoring()
                 );
 
-        controls.setPadding(
-                new Insets(
-                        0,
-                        0,
-                        15,
-                        0
-                )
-        );
+                HBox controls =
+                        new HBox(
+                                10,
+                                inputLabel,
+                                inputComboBox,
+                                startButton,
+                                stopButton
+                        );
 
-        return controls;
-    }
-
-    private ListCell<Mixer.Info> createMixerCell() {
-
-        return new ListCell<>() {
-
-            @Override
-            protected void updateItem(
-                    Mixer.Info mixerInfo,
-                    boolean empty
-            ) {
-
-                super.updateItem(
-                        mixerInfo,
-                        empty
+                controls.setPadding(
+                        new Insets(
+                                0,
+                                0,
+                                15,
+                                0
+                        )
                 );
 
-                if (
-                        empty
-                        || mixerInfo == null
+                return controls;
+        }
+
+        private ListCell<Mixer.Info> createMixerCell() {
+
+                return new ListCell<>() {
+
+                @Override
+                protected void updateItem(
+                        Mixer.Info mixerInfo,
+                        boolean empty
                 ) {
 
-                    setText(null);
+                        super.updateItem(
+                                mixerInfo,
+                                empty
+                        );
+
+                        if (
+                                empty
+                                || mixerInfo == null
+                        ) {
+
+                        setText(null);
+
+                        } else {
+
+                        setText(
+                                mixerInfo.getName()
+                        );
+                        }
+                }
+                };
+        }
+
+        private SplitPane createTransmissionPanel() {
+
+                Label title =
+                        new Label("Transmissions");
+
+                transmissionTable =
+                        new TableView<>();
+
+                transmissionTable.setColumnResizePolicy(
+                        TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
+                );
+
+                DateTimeFormatter dateFormatter =
+                        DateTimeFormatter.ofPattern(
+                                "yyyy-MM-dd HH:mm:ss"
+                        );
+
+                TableColumn<Transmission, String> timeColumn =
+                        new TableColumn<>("Time");
+
+                timeColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleStringProperty(
+                                        cellData
+                                                .getValue()
+                                                .getStartTime()
+                                                .format(dateFormatter)
+                                )
+                );
+
+                TableColumn<Transmission, Number> durationColumn =
+                        new TableColumn<>("Duration (s)");
+
+                durationColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleDoubleProperty(
+                                        cellData
+                                                .getValue()
+                                                .getDuration()
+                                                .toMillis()
+                                                / 1000.0
+                                )
+                );
+
+                TableColumn<Transmission, Number> averageRmsColumn =
+                        new TableColumn<>("Avg RMS");
+
+                averageRmsColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleDoubleProperty(
+                                        cellData
+                                                .getValue()
+                                                .getAverageRms()
+                                )
+                );
+
+                TableColumn<Transmission, Number> maxRmsColumn =
+                        new TableColumn<>("Max RMS");
+
+                maxRmsColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleDoubleProperty(
+                                        cellData
+                                                .getValue()
+                                                .getMaxRms()
+                                )
+                );
+
+                TableColumn<Transmission, String> fileColumn =
+                        new TableColumn<>("File");
+
+                fileColumn.setCellValueFactory(
+                        cellData ->
+                                new SimpleStringProperty(
+                                        cellData
+                                                .getValue()
+                                                .getFilePath()
+                                                .getFileName()
+                                                .toString()
+                                )
+                );
+
+                transmissionTable
+                        .getColumns()
+                        .addAll(
+                                timeColumn,
+                                durationColumn,
+                                averageRmsColumn,
+                                maxRmsColumn,
+                                fileColumn
+                        );
+
+                transmissionTable
+                        .getSelectionModel()
+                        .selectedItemProperty()
+                        .addListener(
+                                (observable, oldValue, newValue) -> {
+
+                                        if (newValue != null) {
+
+                                                showTransmissionDetails(
+                                                        newValue
+                                                );
+
+                                                playButton.setDisable(false);
+                                                deleteButton.setDisable(false);
+
+                                        } else {
+
+                                                playButton.setDisable(true);
+                                                deleteButton.setDisable(true);
+                                        }
+                                }
+                        );
+
+                VBox tablePanel =
+                        new VBox(
+                                10,
+                                title,
+                                transmissionTable
+                        );
+
+                VBox.setVgrow(
+                        transmissionTable,
+                        Priority.ALWAYS
+                );
+
+                Pane detailPanel =
+                        createTransmissionDetailPanel();
+
+                SplitPane splitPane =
+                        new SplitPane(
+                                tablePanel,
+                                detailPanel
+                        );
+
+                splitPane.setDividerPositions(
+                        0.68
+                );
+
+                return splitPane;
+                }
+
+        private Pane createTransmissionDetailPanel() {
+
+                Label title =
+                        new Label("Transmission details");
+
+                detailStartLabel =
+                        new Label("-");
+
+                detailEndLabel =
+                        new Label("-");
+
+                detailDurationLabel =
+                        new Label("-");
+
+                detailAverageRmsLabel =
+                        new Label("-");
+
+                detailMaxRmsLabel =
+                        new Label("-");
+
+                detailFileLabel =
+                        new Label("-");
+
+                detailFileLabel.setWrapText(true);
+
+                GridPane grid =
+                        new GridPane();
+
+                grid.setHgap(10);
+                grid.setVgap(10);
+
+                grid.add(
+                        new Label("Started:"),
+                        0,
+                        0
+                );
+
+                grid.add(
+                        detailStartLabel,
+                        1,
+                        0
+                );
+
+                grid.add(
+                        new Label("Ended:"),
+                        0,
+                        1
+                );
+
+                grid.add(
+                        detailEndLabel,
+                        1,
+                        1
+                );
+
+                grid.add(
+                        new Label("Duration:"),
+                        0,
+                        2
+                );
+
+                grid.add(
+                        detailDurationLabel,
+                        1,
+                        2
+                );
+
+                grid.add(
+                        new Label("Average RMS:"),
+                        0,
+                        3
+                );
+
+                grid.add(
+                        detailAverageRmsLabel,
+                        1,
+                        3
+                );
+
+                grid.add(
+                        new Label("Maximum RMS:"),
+                        0,
+                        4
+                );
+
+                grid.add(
+                        detailMaxRmsLabel,
+                        1,
+                        4
+                );
+
+                grid.add(
+                        new Label("File:"),
+                        0,
+                        5
+                );
+
+                grid.add(
+                        detailFileLabel,
+                        1,
+                        5
+                );
+
+                playButton =
+                        new Button("▶ Play");
+                stopPlaybackButton =
+                        new Button("■ Stop");
+                deleteButton =
+                        new Button("Delete");
+
+                deleteButton.setDisable(true);
+                playButton.setDisable(true);
+                stopPlaybackButton.setDisable(true);
+
+                playButton.setOnAction(
+                        event ->
+                                playSelectedTransmission()
+                );
+
+                stopPlaybackButton.setOnAction(
+                        event ->
+                                audioPlaybackService.stop()
+                );
+
+                deleteButton.setOnAction(
+                        event ->
+                                deleteSelectedTransmission()
+                );
+
+                HBox playbackControls =
+                        new HBox(
+                                10,
+                                playButton,
+                                stopPlaybackButton,
+                                deleteButton
+                        );
+
+                VBox panel =
+                        new VBox(
+                                15,
+                                title,
+                                grid,
+                                playbackControls
+                        );
+
+                panel.setPadding(
+                        new Insets(10)
+                );
+
+                return panel;
+                }
+
+                private void showTransmissionDetails(
+                        Transmission transmission
+                ) {
+
+                DateTimeFormatter formatter =
+                        DateTimeFormatter.ofPattern(
+                                "yyyy-MM-dd HH:mm:ss"
+                        );
+
+                detailStartLabel.setText(
+                        transmission
+                                .getStartTime()
+                                .format(formatter)
+                );
+
+                detailEndLabel.setText(
+                        transmission
+                                .getEndTime()
+                                .format(formatter)
+                );
+
+                detailDurationLabel.setText(
+                        String.format(
+                                "%.3f s",
+                                transmission
+                                        .getDuration()
+                                        .toMillis()
+                                        / 1000.0
+                        )
+                );
+
+                detailAverageRmsLabel.setText(
+                        String.format(
+                                "%.4f",
+                                transmission
+                                        .getAverageRms()
+                        )
+                );
+
+                detailMaxRmsLabel.setText(
+                        String.format(
+                                "%.4f",
+                                transmission
+                                        .getMaxRms()
+                        )
+                );
+
+                detailFileLabel.setText(
+                        transmission
+                                .getFilePath()
+                                .toString()
+                );
+        }
+
+        private Pane createStatusBar() {
+
+                statusLabel =
+                        new Label(
+                                "Idle"
+                        );
+
+                HBox statusBar =
+                        new HBox(
+                                statusLabel
+                        );
+
+                statusBar.setPadding(
+                        new Insets(
+                                10,
+                                0,
+                                0,
+                                0
+                        )
+                );
+
+                return statusBar;
+        }
+
+        private void loadAudioDevices() {
+
+                List<Mixer.Info> devices =
+                        audioDeviceService
+                                .getInputDevices();
+
+                inputComboBox.setItems(
+                        FXCollections.observableArrayList(
+                                devices
+                        )
+                );
+
+                if (!devices.isEmpty()) {
+
+                inputComboBox
+                        .getSelectionModel()
+                        .selectFirst();
+                }
+        }
+
+        private void loadTransmissions() {
+
+                List<Transmission> transmissions =
+                        repository.findRecent(100);
+
+                transmissionTable
+                        .getItems()
+                        .setAll(transmissions);
+        }
+
+        private void playSelectedTransmission() {
+
+                Transmission transmission =
+                        transmissionTable
+                                .getSelectionModel()
+                                .getSelectedItem();
+
+                if (transmission == null) {
+                        return;
+                }
+
+                try {
+
+                        audioPlaybackService.play(
+                                transmission.getFilePath()
+                        );
+
+                        playButton.setDisable(true);
+                        stopPlaybackButton.setDisable(false);
+
+                        statusLabel.setText(
+                                "Playing: "
+                                + transmission
+                                        .getFilePath()
+                                        .getFileName()
+                        );
+
+                } catch (Exception e) {
+
+                        statusLabel.setText(
+                                "Unable to play audio: "
+                                + e.getMessage()
+                        );
+
+                        playButton.setDisable(false);
+                        stopPlaybackButton.setDisable(true);
+                }
+                }
+
+        private void startMonitoring() {
+
+                Mixer.Info selectedDevice =
+                        inputComboBox.getValue();
+
+                if (selectedDevice == null) {
+
+                statusLabel.setText(
+                        "Select an audio input."
+                );
+
+                return;
+                }
+
+                vendRxService.startMonitoring(
+                        selectedDevice
+                );
+
+                statusLabel.setText(
+                        "Monitoring: "
+                        + selectedDevice.getName()
+                );
+
+                startButton.setDisable(true);
+                stopButton.setDisable(false);
+
+                inputComboBox.setDisable(true);
+        }
+
+        private void deleteSelectedTransmission() {
+
+                Transmission transmission =
+                        transmissionTable
+                                .getSelectionModel()
+                                .getSelectedItem();
+
+                if (transmission == null) {
+                        return;
+                }
+
+                Alert confirmation =
+                        new Alert(
+                                Alert.AlertType.CONFIRMATION
+                        );
+
+                confirmation.setTitle(
+                        "Delete transmission"
+                );
+
+                confirmation.setHeaderText(
+                        "Delete this transmission?"
+                );
+
+                confirmation.setContentText(
+                        transmission
+                                .getFilePath()
+                                .getFileName()
+                                .toString()
+                        + "\n\nThe WAV file and database entry will be deleted."
+                );
+
+                ButtonType result =
+                        confirmation
+                                .showAndWait()
+                                .orElse(
+                                        ButtonType.CANCEL
+                                );
+
+                if (result != ButtonType.OK) {
+                        return;
+                }
+
+                try {
+
+                        if (audioPlaybackService.isPlaying()) {
+                        audioPlaybackService.stop();
+                        }
+
+                        Files.deleteIfExists(
+                                transmission.getFilePath()
+                        );
+
+                        repository.delete(
+                                transmission
+                        );
+
+                        transmissionTable
+                                .getItems()
+                                .remove(transmission);
+
+                        clearTransmissionDetails();
+
+                        statusLabel.setText(
+                                "Transmission deleted."
+                        );
+
+                } catch (Exception e) {
+
+                        Alert error =
+                                new Alert(
+                                        Alert.AlertType.ERROR
+                                );
+
+                        error.setTitle(
+                                "Delete failed"
+                        );
+
+                        error.setHeaderText(
+                                "Unable to delete transmission."
+                        );
+
+                        error.setContentText(
+                                e.getMessage()
+                        );
+
+                        error.showAndWait();
+                }
+        }
+
+        private void clearTransmissionDetails() {
+
+                detailStartLabel.setText("-");
+                detailEndLabel.setText("-");
+                detailDurationLabel.setText("-");
+                detailAverageRmsLabel.setText("-");
+                detailMaxRmsLabel.setText("-");
+                detailFileLabel.setText("-");
+
+                playButton.setDisable(true);
+                stopPlaybackButton.setDisable(true);
+                deleteButton.setDisable(true);
+        }
+
+        private void restoreStatus() {
+
+                if (
+                        vendRxService.isMonitoring()
+                        && inputComboBox.getValue() != null
+                ) {
+
+                        statusLabel.setText(
+                                "Monitoring: "
+                                + inputComboBox
+                                        .getValue()
+                                        .getName()
+                        );
 
                 } else {
 
-                    setText(
-                            mixerInfo.getName()
-                    );
+                        statusLabel.setText(
+                                "Idle"
+                        );
                 }
-            }
-        };
-    }
+        }
 
-    private Pane createTransmissionPanel() {
+        private void stopMonitoring() {
 
-        Label title =
-                new Label(
-                        "Recent transmissions"
-                );
+                vendRxService.stopMonitoring();
 
-        transmissionList =
-                new ListView<>();
-
-        VBox panel =
-                new VBox(
-                        10,
-                        title,
-                        transmissionList
-                );
-
-        VBox.setVgrow(
-                transmissionList,
-                Priority.ALWAYS
-        );
-
-        return panel;
-    }
-
-    private Pane createStatusBar() {
-
-        statusLabel =
-                new Label(
+                statusLabel.setText(
                         "Idle"
                 );
 
-        HBox statusBar =
-                new HBox(
-                        statusLabel
-                );
+                startButton.setDisable(false);
+                stopButton.setDisable(true);
 
-        statusBar.setPadding(
-                new Insets(
-                        10,
-                        0,
-                        0,
-                        0
-                )
-        );
+                inputComboBox.setDisable(false);
 
-        return statusBar;
-    }
-
-    private void loadAudioDevices() {
-
-        List<Mixer.Info> devices =
-                audioDeviceService
-                        .getInputDevices();
-
-        inputComboBox.setItems(
-                FXCollections.observableArrayList(
-                        devices
-                )
-        );
-
-        if (!devices.isEmpty()) {
-
-            inputComboBox
-                    .getSelectionModel()
-                    .selectFirst();
-        }
-    }
-
-    private void loadTransmissions() {
-
-        List<Transmission> transmissions =
-                repository.findRecent(20);
-
-        transmissionList
-                .getItems()
-                .clear();
-
-        for (
-                Transmission transmission :
-                transmissions
-        ) {
-
-            String text =
-                    String.format(
-                            "%s | %.3f s | RMS %.4f",
-                            transmission.getStartTime(),
-                            transmission
-                                    .getDuration()
-                                    .toMillis()
-                                    / 1000.0,
-                            transmission.getAverageRms()
-                    );
-
-            transmissionList
-                    .getItems()
-                    .add(text);
-        }
-    }
-
-    private void startMonitoring() {
-
-        Mixer.Info selectedDevice =
-                inputComboBox.getValue();
-
-        if (selectedDevice == null) {
-
-            statusLabel.setText(
-                    "Select an audio input."
-            );
-
-            return;
+                loadTransmissions();
         }
 
-        vendRxService.startMonitoring(
-                selectedDevice
-        );
+        @Override
+        public void stop() {
 
-        statusLabel.setText(
-                "Monitoring: "
-                + selectedDevice.getName()
-        );
+                if (audioPlaybackService != null) {
+                        audioPlaybackService.stop();
+                }
 
-        startButton.setDisable(true);
-        stopButton.setDisable(false);
+                if (
+                        vendRxService != null
+                        && vendRxService.isMonitoring()
+                ) {
 
-        inputComboBox.setDisable(true);
-    }
-
-    private void stopMonitoring() {
-
-        vendRxService.stopMonitoring();
-
-        statusLabel.setText(
-                "Idle"
-        );
-
-        startButton.setDisable(false);
-        stopButton.setDisable(true);
-
-        inputComboBox.setDisable(false);
-
-        loadTransmissions();
-    }
-
-    @Override
-    public void stop() {
-
-        if (
-                vendRxService != null
-                && vendRxService.isMonitoring()
-        ) {
-
-            vendRxService.stopMonitoring();
+                        vendRxService.stopMonitoring();
+                }
         }
-    }
 }

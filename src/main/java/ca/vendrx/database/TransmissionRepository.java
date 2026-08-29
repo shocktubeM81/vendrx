@@ -224,4 +224,37 @@ public class TransmissionRepository {
             );
         }
     }
+    
+    public void delete(Transmission transmission) {
+
+        String sql = """
+                DELETE FROM transmission
+                WHERE file_path = ?
+                """;
+
+        try (
+                Connection connection =
+                        DriverManager.getConnection(databaseUrl);
+
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+                statement.setString(
+                        1,
+                        transmission
+                                .getFilePath()
+                                .toString()
+                );
+
+                statement.executeUpdate();
+
+        } catch (SQLException e) {
+
+                throw new RuntimeException(
+                        "Unable to delete transmission from database.",
+                        e
+                );
+        }
+        }
 }

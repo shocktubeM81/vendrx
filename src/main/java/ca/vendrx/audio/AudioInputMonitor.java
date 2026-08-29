@@ -14,6 +14,7 @@ public class AudioInputMonitor {
     private final TransmissionRecorder recorder;
     private final PreBuffer preBuffer;
     private final TransmissionRepository repository;
+    private final AudioMonitorListener listener;
 
     private volatile boolean running = false;
     private volatile TargetDataLine line;
@@ -24,7 +25,8 @@ public class AudioInputMonitor {
             TransmissionDetector transmissionDetector,
             TransmissionRecorder recorder,
             PreBuffer preBuffer,
-            TransmissionRepository repository
+            TransmissionRepository repository,
+            AudioMonitorListener listener
     ) {
         this.mixerInfo = mixerInfo;
         this.format = format;
@@ -32,6 +34,7 @@ public class AudioInputMonitor {
         this.recorder = recorder;
         this.preBuffer = preBuffer;
         this.repository = repository;
+        this.listener = listener;
     }
 
     public void start() throws LineUnavailableException {
@@ -209,6 +212,9 @@ public class AudioInputMonitor {
         if (transmission != null) {
 
             repository.save(transmission);
+            if (listener != null) {
+                listener.onTransmissionSaved(transmission);
+            }
 
             System.out.println();
             System.out.println(transmission);
