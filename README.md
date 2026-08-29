@@ -157,18 +157,46 @@ Transmission saved to database.
 
 ## Roadmap
 
-Planned features include:
+VendRx is being developed incrementally from a command-line prototype into a desktop radio logging application.
 
-* Offline speech-to-text transcription
-* Whisper / whisper.cpp integration
-* Searchable transcription storage
-* Transmission browser
+### Near term
+
+* Transmission history and browsing
+* Display detailed transmission metadata
+* Select and inspect recorded transmissions
 * WAV playback
-* Improved signal threshold calibration
-* Configurable audio and detector settings
-* Frequency / channel metadata
-* Graphical user interface
+* Configurable signal detection threshold
+* Configurable silence timeout and pre-buffer duration
+* Improved error handling and application configuration
+
+### Desktop interface
+
+A graphical desktop interface is planned using JavaFX.
+
+The interface should eventually provide:
+
+* Live audio level monitoring
+* Recording status and signal indication
+* Audio input selection
+* Transmission history
+* Transmission metadata
+* Integrated audio playback
+* Application settings
+* Search and filtering
 * Recording and activity statistics
+
+### Later development
+
+Possible future features include:
+
+* Frequency and channel metadata
+* Manual notes and transmission tagging
+* Import and export tools
+* Audio waveform visualization
+* Signal and activity statistics
+* Offline speech-to-text transcription
+* Searchable transcription storage
+
 
 ## Development
 
