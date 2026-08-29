@@ -6,6 +6,7 @@ import ca.vendrx.database.TransmissionRepository;
 import ca.vendrx.model.Transmission;
 import ca.vendrx.service.VendRxService;
 import ca.vendrx.service.AudioPlaybackService;
+import ca.vendrx.service.TransmissionService;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -18,7 +19,6 @@ import javafx.stage.Stage;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 
-import java.nio.file.Files;
 import java.time.format.DateTimeFormatter;
 
 import javax.sound.sampled.Mixer;
@@ -35,19 +35,12 @@ public class VendRxApplication extends Application {
 
         private Button startButton;
         private Button stopButton;
-        private Button playButton;
-        private Button stopPlaybackButton;
-        private Button deleteButton;
 
         private Label statusLabel;
-        private Label detailStartLabel;
-        private Label detailEndLabel;
-        private Label detailDurationLabel;
-        private Label detailAverageRmsLabel;
-        private Label detailMaxRmsLabel;
-        private Label detailFileLabel;
 
         private TableView<Transmission> transmissionTable;
+        private TransmissionDetailsPane detailsPane;
+        private TransmissionService transmissionService;
 
         @Override
         public void start(Stage stage) {
@@ -99,6 +92,11 @@ public class VendRxApplication extends Application {
 
                 repository.initialize();
 
+                transmissionService =
+                        new TransmissionService(
+                                repository
+                        );
+
                 AudioConfig audioConfig =
                         AudioConfig.defaultConfig();
 
@@ -128,16 +126,7 @@ public class VendRxApplication extends Application {
                         () ->
                                 Platform.runLater(
                                         () -> {
-
-                                        playButton.setDisable(
-                                                transmissionTable
-                                                        .getSelectionModel()
-                                                        .getSelectedItem()
-                                                        == null
-                                        );
-
-                                        stopPlaybackButton.setDisable(true);
-
+                                        detailsPane.setPlaying(false);
                                         restoreStatus();
                                         }
                                 )
@@ -334,27 +323,30 @@ public class VendRxApplication extends Application {
                                 fileColumn
                         );
 
+                detailsPane =
+                        new TransmissionDetailsPane();
+
+                detailsPane.setOnPlay(
+                        this::playSelectedTransmission
+                );
+
+                detailsPane.setOnStop(
+                        () ->
+                                audioPlaybackService.stop()
+                );
+
+                detailsPane.setOnDelete(
+                        this::deleteSelectedTransmission
+                );
+
                 transmissionTable
                         .getSelectionModel()
                         .selectedItemProperty()
                         .addListener(
-                                (observable, oldValue, newValue) -> {
-
-                                        if (newValue != null) {
-
-                                                showTransmissionDetails(
-                                                        newValue
-                                                );
-
-                                                playButton.setDisable(false);
-                                                deleteButton.setDisable(false);
-
-                                        } else {
-
-                                                playButton.setDisable(true);
-                                                deleteButton.setDisable(true);
-                                        }
-                                }
+                                (observable, oldValue, newValue) ->
+                                        detailsPane.showTransmission(
+                                                newValue
+                                        )
                         );
 
                 VBox tablePanel =
@@ -369,13 +361,10 @@ public class VendRxApplication extends Application {
                         Priority.ALWAYS
                 );
 
-                Pane detailPanel =
-                        createTransmissionDetailPanel();
-
                 SplitPane splitPane =
                         new SplitPane(
                                 tablePanel,
-                                detailPanel
+                                detailsPane
                         );
 
                 splitPane.setDividerPositions(
@@ -383,212 +372,6 @@ public class VendRxApplication extends Application {
                 );
 
                 return splitPane;
-                }
-
-        private Pane createTransmissionDetailPanel() {
-
-                Label title =
-                        new Label("Transmission details");
-
-                detailStartLabel =
-                        new Label("-");
-
-                detailEndLabel =
-                        new Label("-");
-
-                detailDurationLabel =
-                        new Label("-");
-
-                detailAverageRmsLabel =
-                        new Label("-");
-
-                detailMaxRmsLabel =
-                        new Label("-");
-
-                detailFileLabel =
-                        new Label("-");
-
-                detailFileLabel.setWrapText(true);
-
-                GridPane grid =
-                        new GridPane();
-
-                grid.setHgap(10);
-                grid.setVgap(10);
-
-                grid.add(
-                        new Label("Started:"),
-                        0,
-                        0
-                );
-
-                grid.add(
-                        detailStartLabel,
-                        1,
-                        0
-                );
-
-                grid.add(
-                        new Label("Ended:"),
-                        0,
-                        1
-                );
-
-                grid.add(
-                        detailEndLabel,
-                        1,
-                        1
-                );
-
-                grid.add(
-                        new Label("Duration:"),
-                        0,
-                        2
-                );
-
-                grid.add(
-                        detailDurationLabel,
-                        1,
-                        2
-                );
-
-                grid.add(
-                        new Label("Average RMS:"),
-                        0,
-                        3
-                );
-
-                grid.add(
-                        detailAverageRmsLabel,
-                        1,
-                        3
-                );
-
-                grid.add(
-                        new Label("Maximum RMS:"),
-                        0,
-                        4
-                );
-
-                grid.add(
-                        detailMaxRmsLabel,
-                        1,
-                        4
-                );
-
-                grid.add(
-                        new Label("File:"),
-                        0,
-                        5
-                );
-
-                grid.add(
-                        detailFileLabel,
-                        1,
-                        5
-                );
-
-                playButton =
-                        new Button("▶ Play");
-                stopPlaybackButton =
-                        new Button("■ Stop");
-                deleteButton =
-                        new Button("Delete");
-
-                deleteButton.setDisable(true);
-                playButton.setDisable(true);
-                stopPlaybackButton.setDisable(true);
-
-                playButton.setOnAction(
-                        event ->
-                                playSelectedTransmission()
-                );
-
-                stopPlaybackButton.setOnAction(
-                        event ->
-                                audioPlaybackService.stop()
-                );
-
-                deleteButton.setOnAction(
-                        event ->
-                                deleteSelectedTransmission()
-                );
-
-                HBox playbackControls =
-                        new HBox(
-                                10,
-                                playButton,
-                                stopPlaybackButton,
-                                deleteButton
-                        );
-
-                VBox panel =
-                        new VBox(
-                                15,
-                                title,
-                                grid,
-                                playbackControls
-                        );
-
-                panel.setPadding(
-                        new Insets(10)
-                );
-
-                return panel;
-                }
-
-                private void showTransmissionDetails(
-                        Transmission transmission
-                ) {
-
-                DateTimeFormatter formatter =
-                        DateTimeFormatter.ofPattern(
-                                "yyyy-MM-dd HH:mm:ss"
-                        );
-
-                detailStartLabel.setText(
-                        transmission
-                                .getStartTime()
-                                .format(formatter)
-                );
-
-                detailEndLabel.setText(
-                        transmission
-                                .getEndTime()
-                                .format(formatter)
-                );
-
-                detailDurationLabel.setText(
-                        String.format(
-                                "%.3f s",
-                                transmission
-                                        .getDuration()
-                                        .toMillis()
-                                        / 1000.0
-                        )
-                );
-
-                detailAverageRmsLabel.setText(
-                        String.format(
-                                "%.4f",
-                                transmission
-                                        .getAverageRms()
-                        )
-                );
-
-                detailMaxRmsLabel.setText(
-                        String.format(
-                                "%.4f",
-                                transmission
-                                        .getMaxRms()
-                        )
-                );
-
-                detailFileLabel.setText(
-                        transmission
-                                .getFilePath()
-                                .toString()
-                );
         }
 
         private Pane createStatusBar() {
@@ -662,8 +445,7 @@ public class VendRxApplication extends Application {
                                 transmission.getFilePath()
                         );
 
-                        playButton.setDisable(true);
-                        stopPlaybackButton.setDisable(false);
+                        detailsPane.setPlaying(true);
 
                         statusLabel.setText(
                                 "Playing: "
@@ -679,8 +461,7 @@ public class VendRxApplication extends Application {
                                 + e.getMessage()
                         );
 
-                        playButton.setDisable(false);
-                        stopPlaybackButton.setDisable(true);
+                        detailsPane.setPlaying(false);
                 }
                 }
 
@@ -759,41 +540,27 @@ public class VendRxApplication extends Application {
                 try {
 
                         if (audioPlaybackService.isPlaying()) {
-                        audioPlaybackService.stop();
+                                audioPlaybackService.stop();
                         }
 
-                        Files.deleteIfExists(
-                                transmission.getFilePath()
-                        );
-
-                        repository.delete(
-                                transmission
-                        );
+                        transmissionService.delete(transmission);
 
                         transmissionTable
                                 .getItems()
                                 .remove(transmission);
 
-                        clearTransmissionDetails();
+                        detailsPane.clear();
 
-                        statusLabel.setText(
-                                "Transmission deleted."
-                        );
+                        statusLabel.setText("Transmission deleted.");
 
                 } catch (Exception e) {
 
                         Alert error =
-                                new Alert(
-                                        Alert.AlertType.ERROR
-                                );
+                                new Alert(Alert.AlertType.ERROR);
 
-                        error.setTitle(
-                                "Delete failed"
-                        );
+                        error.setTitle("Delete failed");
 
-                        error.setHeaderText(
-                                "Unable to delete transmission."
-                        );
+                        error.setHeaderText("Unable to delete transmission.");
 
                         error.setContentText(
                                 e.getMessage()
@@ -801,20 +568,6 @@ public class VendRxApplication extends Application {
 
                         error.showAndWait();
                 }
-        }
-
-        private void clearTransmissionDetails() {
-
-                detailStartLabel.setText("-");
-                detailEndLabel.setText("-");
-                detailDurationLabel.setText("-");
-                detailAverageRmsLabel.setText("-");
-                detailMaxRmsLabel.setText("-");
-                detailFileLabel.setText("-");
-
-                playButton.setDisable(true);
-                stopPlaybackButton.setDisable(true);
-                deleteButton.setDisable(true);
         }
 
         private void restoreStatus() {
