@@ -13,6 +13,10 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleStringProperty;
+
+import java.time.format.DateTimeFormatter;
 
 import javax.sound.sampled.Mixer;
 import java.util.List;
@@ -30,7 +34,7 @@ public class VendRxApplication extends Application {
 
     private Label statusLabel;
 
-    private ListView<String> transmissionList;
+    private TableView<Transmission> transmissionTable;
 
     @Override
     public void start(Stage stage) {
@@ -196,22 +200,104 @@ public class VendRxApplication extends Application {
     private Pane createTransmissionPanel() {
 
         Label title =
-                new Label(
-                        "Recent transmissions"
+                new Label("Transmissions");
+
+        transmissionTable =
+                new TableView<>();
+
+        transmissionTable.setColumnResizePolicy(
+                TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
+        );
+
+        DateTimeFormatter dateFormatter =
+                DateTimeFormatter.ofPattern(
+                        "yyyy-MM-dd HH:mm:ss"
                 );
 
-        transmissionList =
-                new ListView<>();
+        TableColumn<Transmission, String> timeColumn =
+                new TableColumn<>("Time");
+
+        timeColumn.setCellValueFactory(
+                cellData ->
+                        new SimpleStringProperty(
+                                cellData
+                                        .getValue()
+                                        .getStartTime()
+                                        .format(dateFormatter)
+                        )
+        );
+
+        TableColumn<Transmission, Number> durationColumn =
+                new TableColumn<>("Duration (s)");
+
+        durationColumn.setCellValueFactory(
+                cellData ->
+                        new SimpleDoubleProperty(
+                                cellData
+                                        .getValue()
+                                        .getDuration()
+                                        .toMillis()
+                                        / 1000.0
+                        )
+        );
+
+        TableColumn<Transmission, Number> averageRmsColumn =
+                new TableColumn<>("Avg RMS");
+
+        averageRmsColumn.setCellValueFactory(
+                cellData ->
+                        new SimpleDoubleProperty(
+                                cellData
+                                        .getValue()
+                                        .getAverageRms()
+                        )
+        );
+
+        TableColumn<Transmission, Number> maxRmsColumn =
+                new TableColumn<>("Max RMS");
+
+        maxRmsColumn.setCellValueFactory(
+                cellData ->
+                        new SimpleDoubleProperty(
+                                cellData
+                                        .getValue()
+                                        .getMaxRms()
+                        )
+        );
+
+        TableColumn<Transmission, String> fileColumn =
+                new TableColumn<>("File");
+
+        fileColumn.setCellValueFactory(
+                cellData ->
+                        new SimpleStringProperty(
+                                cellData
+                                        .getValue()
+                                        .getFilePath()
+                                        .getFileName()
+                                        .toString()
+                        )
+        );
+
+        transmissionTable
+                .getColumns()
+                .addAll(
+                        timeColumn,
+                        durationColumn,
+                        averageRmsColumn,
+                        maxRmsColumn,
+                        fileColumn
+                );
 
         VBox panel =
                 new VBox(
                         10,
                         title,
-                        transmissionList
+                        transmissionTable
                 );
 
         VBox.setVgrow(
-                transmissionList,
+                transmissionTable,
                 Priority.ALWAYS
         );
 
@@ -265,32 +351,11 @@ public class VendRxApplication extends Application {
     private void loadTransmissions() {
 
         List<Transmission> transmissions =
-                repository.findRecent(20);
+                repository.findRecent(100);
 
-        transmissionList
+        transmissionTable
                 .getItems()
-                .clear();
-
-        for (
-                Transmission transmission :
-                transmissions
-        ) {
-
-            String text =
-                    String.format(
-                            "%s | %.3f s | RMS %.4f",
-                            transmission.getStartTime(),
-                            transmission
-                                    .getDuration()
-                                    .toMillis()
-                                    / 1000.0,
-                            transmission.getAverageRms()
-                    );
-
-            transmissionList
-                    .getItems()
-                    .add(text);
-        }
+                .setAll(transmissions);
     }
 
     private void startMonitoring() {
