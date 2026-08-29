@@ -5,6 +5,7 @@ import ca.vendrx.config.AudioConfig;
 import ca.vendrx.database.TransmissionRepository;
 import ca.vendrx.model.Transmission;
 import ca.vendrx.service.VendRxService;
+import ca.vendrx.service.AudioPlaybackService;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -27,11 +28,14 @@ public class VendRxApplication extends Application {
         private TransmissionRepository repository;
         private VendRxService vendRxService;
         private AudioDeviceService audioDeviceService;
+        private AudioPlaybackService audioPlaybackService;
 
         private ComboBox<Mixer.Info> inputComboBox;
 
         private Button startButton;
         private Button stopButton;
+        private Button playButton;
+        private Button stopPlaybackButton;
 
         private Label statusLabel;
         private Label detailStartLabel;
@@ -114,6 +118,28 @@ public class VendRxApplication extends Application {
 
                 audioDeviceService =
                         new AudioDeviceService();
+
+                audioPlaybackService =
+                        new AudioPlaybackService();
+
+                audioPlaybackService.setOnPlaybackStopped(
+                        () ->
+                                Platform.runLater(
+                                        () -> {
+
+                                        playButton.setDisable(
+                                                transmissionTable
+                                                        .getSelectionModel()
+                                                        .getSelectedItem()
+                                                        == null
+                                        );
+
+                                        stopPlaybackButton.setDisable(true);
+
+                                        restoreStatus();
+                                        }
+                                )
+                );
         }
 
         private Pane createTopPanel() {
@@ -313,9 +339,16 @@ public class VendRxApplication extends Application {
                                 (observable, oldValue, newValue) -> {
 
                                         if (newValue != null) {
-                                        showTransmissionDetails(
-                                                newValue
-                                        );
+
+                                                showTransmissionDetails(
+                                                        newValue
+                                                );
+
+                                                playButton.setDisable(false);
+
+                                        } else {
+
+                                                playButton.setDisable(true);
                                         }
                                 }
                         );
@@ -451,11 +484,38 @@ public class VendRxApplication extends Application {
                         5
                 );
 
+                playButton =
+                        new Button("▶ Play");
+
+                stopPlaybackButton =
+                        new Button("■ Stop");
+
+                playButton.setDisable(true);
+                stopPlaybackButton.setDisable(true);
+
+                playButton.setOnAction(
+                        event ->
+                                playSelectedTransmission()
+                );
+
+                stopPlaybackButton.setOnAction(
+                        event ->
+                                audioPlaybackService.stop()
+                );
+
+                HBox playbackControls =
+                        new HBox(
+                                10,
+                                playButton,
+                                stopPlaybackButton
+                        );
+
                 VBox panel =
                         new VBox(
                                 15,
                                 title,
-                                grid
+                                grid,
+                                playbackControls
                         );
 
                 panel.setPadding(
@@ -573,6 +633,45 @@ public class VendRxApplication extends Application {
                         .setAll(transmissions);
         }
 
+        private void playSelectedTransmission() {
+
+                Transmission transmission =
+                        transmissionTable
+                                .getSelectionModel()
+                                .getSelectedItem();
+
+                if (transmission == null) {
+                        return;
+                }
+
+                try {
+
+                        audioPlaybackService.play(
+                                transmission.getFilePath()
+                        );
+
+                        playButton.setDisable(true);
+                        stopPlaybackButton.setDisable(false);
+
+                        statusLabel.setText(
+                                "Playing: "
+                                + transmission
+                                        .getFilePath()
+                                        .getFileName()
+                        );
+
+                } catch (Exception e) {
+
+                        statusLabel.setText(
+                                "Unable to play audio: "
+                                + e.getMessage()
+                        );
+
+                        playButton.setDisable(false);
+                        stopPlaybackButton.setDisable(true);
+                }
+                }
+
         private void startMonitoring() {
 
                 Mixer.Info selectedDevice =
@@ -602,6 +701,28 @@ public class VendRxApplication extends Application {
                 inputComboBox.setDisable(true);
         }
 
+        private void restoreStatus() {
+
+                if (
+                        vendRxService.isMonitoring()
+                        && inputComboBox.getValue() != null
+                ) {
+
+                        statusLabel.setText(
+                                "Monitoring: "
+                                + inputComboBox
+                                        .getValue()
+                                        .getName()
+                        );
+
+                } else {
+
+                        statusLabel.setText(
+                                "Idle"
+                        );
+                }
+        }
+
         private void stopMonitoring() {
 
                 vendRxService.stopMonitoring();
@@ -621,12 +742,16 @@ public class VendRxApplication extends Application {
         @Override
         public void stop() {
 
+                if (audioPlaybackService != null) {
+                        audioPlaybackService.stop();
+                }
+
                 if (
                         vendRxService != null
                         && vendRxService.isMonitoring()
                 ) {
 
-                vendRxService.stopMonitoring();
+                        vendRxService.stopMonitoring();
                 }
         }
 }
