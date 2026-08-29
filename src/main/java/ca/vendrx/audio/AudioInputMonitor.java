@@ -2,6 +2,9 @@ package ca.vendrx.audio;
 
 import javax.sound.sampled.*;
 
+import ca.vendrx.model.Transmission;
+import ca.vendrx.database.TransmissionRepository;
+
 public class AudioInputMonitor {
 
     private static final float SAMPLE_RATE = 44100.0f;
@@ -12,17 +15,20 @@ public class AudioInputMonitor {
     private final TransmissionDetector transmissionDetector;
     private final TransmissionRecorder recorder;
     private final PreBuffer preBuffer;
+    private final TransmissionRepository repository;
 
     public AudioInputMonitor(
         Mixer.Info mixerInfo,
         TransmissionDetector transmissionDetector,
         TransmissionRecorder recorder,
-        PreBuffer preBuffer
+        PreBuffer preBuffer,
+        TransmissionRepository repository
     ) {
         this.mixerInfo = mixerInfo;
         this.transmissionDetector = transmissionDetector;
         this.recorder = recorder;
         this.preBuffer = preBuffer;
+        this.repository = repository;
     }
 
     public void start() throws LineUnavailableException {
@@ -93,12 +99,22 @@ public class AudioInputMonitor {
                         buffer,
                         bytesRead
                 );
+                recorder.addRms(rms);
             }
 
             if (previousState == TransmissionDetector.State.RECORDING
                     && currentState == TransmissionDetector.State.IDLE) {
 
-                recorder.stop();
+                Transmission transmission =
+                        recorder.stop();
+
+                if (transmission != null) {
+
+                    repository.save(transmission);
+
+                    System.out.println();
+                    System.out.println(transmission);
+                }
             }
 
             if (currentState == TransmissionDetector.State.IDLE) {
