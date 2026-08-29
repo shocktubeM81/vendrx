@@ -1,8 +1,10 @@
 package ca.vendrx;
 
 import ca.vendrx.audio.AudioInputMonitor;
+import ca.vendrx.audio.PreBuffer;
 import ca.vendrx.audio.TransmissionDetector;
 import ca.vendrx.audio.TransmissionRecorder;
+import ca.vendrx.audio.PreBuffer;
 
 import javax.sound.sampled.*;
 import java.util.ArrayList;
@@ -65,11 +67,23 @@ public class Main {
             TransmissionRecorder recorder =
                     new TransmissionRecorder(format);
 
+            int bytesPerSecond =
+                    (int) (
+                            format.getSampleRate()
+                            * format.getFrameSize()
+                    );
+
+            PreBuffer preBuffer =
+                    new PreBuffer(
+                            bytesPerSecond * 2
+                    );
+
             AudioInputMonitor monitor =
                     new AudioInputMonitor(
                             inputs.get(selection),
                             detector,
-                            recorder
+                            recorder,
+                            preBuffer
                     );
 
             monitor.start();
