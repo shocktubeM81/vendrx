@@ -46,7 +46,7 @@ public class VendRxApplication extends Application {
         @Override
         public void start(Stage stage) {
         
-                        initializeServices();
+                initializeServices();
 
                 BorderPane root =
                         new BorderPane();
@@ -214,7 +214,7 @@ public class VendRxApplication extends Application {
                 };
         }
 
-        private Pane createTransmissionPanel() {
+        private SplitPane createTransmissionPanel() {
 
                 Label title =
                         new Label("Transmissions");
@@ -346,116 +346,287 @@ public class VendRxApplication extends Application {
                 );
 
                 return splitPane;
+                }
+
+        private Pane createTransmissionDetailPanel() {
+
+                Label title =
+                        new Label("Transmission details");
+
+                detailStartLabel =
+                        new Label("-");
+
+                detailEndLabel =
+                        new Label("-");
+
+                detailDurationLabel =
+                        new Label("-");
+
+                detailAverageRmsLabel =
+                        new Label("-");
+
+                detailMaxRmsLabel =
+                        new Label("-");
+
+                detailFileLabel =
+                        new Label("-");
+
+                detailFileLabel.setWrapText(true);
+
+                GridPane grid =
+                        new GridPane();
+
+                grid.setHgap(10);
+                grid.setVgap(10);
+
+                grid.add(
+                        new Label("Started:"),
+                        0,
+                        0
+                );
+
+                grid.add(
+                        detailStartLabel,
+                        1,
+                        0
+                );
+
+                grid.add(
+                        new Label("Ended:"),
+                        0,
+                        1
+                );
+
+                grid.add(
+                        detailEndLabel,
+                        1,
+                        1
+                );
+
+                grid.add(
+                        new Label("Duration:"),
+                        0,
+                        2
+                );
+
+                grid.add(
+                        detailDurationLabel,
+                        1,
+                        2
+                );
+
+                grid.add(
+                        new Label("Average RMS:"),
+                        0,
+                        3
+                );
+
+                grid.add(
+                        detailAverageRmsLabel,
+                        1,
+                        3
+                );
+
+                grid.add(
+                        new Label("Maximum RMS:"),
+                        0,
+                        4
+                );
+
+                grid.add(
+                        detailMaxRmsLabel,
+                        1,
+                        4
+                );
+
+                grid.add(
+                        new Label("File:"),
+                        0,
+                        5
+                );
+
+                grid.add(
+                        detailFileLabel,
+                        1,
+                        5
+                );
+
+                VBox panel =
+                        new VBox(
+                                15,
+                                title,
+                                grid
+                        );
+
+                panel.setPadding(
+                        new Insets(10)
+                );
+
+                return panel;
+                }
+
+                private void showTransmissionDetails(
+                        Transmission transmission
+                ) {
+
+                DateTimeFormatter formatter =
+                        DateTimeFormatter.ofPattern(
+                                "yyyy-MM-dd HH:mm:ss"
+                        );
+
+                detailStartLabel.setText(
+                        transmission
+                                .getStartTime()
+                                .format(formatter)
+                );
+
+                detailEndLabel.setText(
+                        transmission
+                                .getEndTime()
+                                .format(formatter)
+                );
+
+                detailDurationLabel.setText(
+                        String.format(
+                                "%.3f s",
+                                transmission
+                                        .getDuration()
+                                        .toMillis()
+                                        / 1000.0
+                        )
+                );
+
+                detailAverageRmsLabel.setText(
+                        String.format(
+                                "%.4f",
+                                transmission
+                                        .getAverageRms()
+                        )
+                );
+
+                detailMaxRmsLabel.setText(
+                        String.format(
+                                "%.4f",
+                                transmission
+                                        .getMaxRms()
+                        )
+                );
+
+                detailFileLabel.setText(
+                        transmission
+                                .getFilePath()
+                                .toString()
+                );
         }
 
-    private Pane createStatusBar() {
+        private Pane createStatusBar() {
 
-        statusLabel =
-                new Label(
+                statusLabel =
+                        new Label(
+                                "Idle"
+                        );
+
+                HBox statusBar =
+                        new HBox(
+                                statusLabel
+                        );
+
+                statusBar.setPadding(
+                        new Insets(
+                                10,
+                                0,
+                                0,
+                                0
+                        )
+                );
+
+                return statusBar;
+        }
+
+        private void loadAudioDevices() {
+
+                List<Mixer.Info> devices =
+                        audioDeviceService
+                                .getInputDevices();
+
+                inputComboBox.setItems(
+                        FXCollections.observableArrayList(
+                                devices
+                        )
+                );
+
+                if (!devices.isEmpty()) {
+
+                inputComboBox
+                        .getSelectionModel()
+                        .selectFirst();
+                }
+        }
+
+        private void loadTransmissions() {
+
+                List<Transmission> transmissions =
+                        repository.findRecent(100);
+
+                transmissionTable
+                        .getItems()
+                        .setAll(transmissions);
+        }
+
+        private void startMonitoring() {
+
+                Mixer.Info selectedDevice =
+                        inputComboBox.getValue();
+
+                if (selectedDevice == null) {
+
+                statusLabel.setText(
+                        "Select an audio input."
+                );
+
+                return;
+                }
+
+                vendRxService.startMonitoring(
+                        selectedDevice
+                );
+
+                statusLabel.setText(
+                        "Monitoring: "
+                        + selectedDevice.getName()
+                );
+
+                startButton.setDisable(true);
+                stopButton.setDisable(false);
+
+                inputComboBox.setDisable(true);
+        }
+
+        private void stopMonitoring() {
+
+                vendRxService.stopMonitoring();
+
+                statusLabel.setText(
                         "Idle"
                 );
 
-        HBox statusBar =
-                new HBox(
-                        statusLabel
-                );
+                startButton.setDisable(false);
+                stopButton.setDisable(true);
 
-        statusBar.setPadding(
-                new Insets(
-                        10,
-                        0,
-                        0,
-                        0
-                )
-        );
+                inputComboBox.setDisable(false);
 
-        return statusBar;
-    }
-
-    private void loadAudioDevices() {
-
-        List<Mixer.Info> devices =
-                audioDeviceService
-                        .getInputDevices();
-
-        inputComboBox.setItems(
-                FXCollections.observableArrayList(
-                        devices
-                )
-        );
-
-        if (!devices.isEmpty()) {
-
-            inputComboBox
-                    .getSelectionModel()
-                    .selectFirst();
-        }
-    }
-
-    private void loadTransmissions() {
-
-        List<Transmission> transmissions =
-                repository.findRecent(100);
-
-        transmissionTable
-                .getItems()
-                .setAll(transmissions);
-    }
-
-    private void startMonitoring() {
-
-        Mixer.Info selectedDevice =
-                inputComboBox.getValue();
-
-        if (selectedDevice == null) {
-
-            statusLabel.setText(
-                    "Select an audio input."
-            );
-
-            return;
+                loadTransmissions();
         }
 
-        vendRxService.startMonitoring(
-                selectedDevice
-        );
+        @Override
+        public void stop() {
 
-        statusLabel.setText(
-                "Monitoring: "
-                + selectedDevice.getName()
-        );
+                if (
+                        vendRxService != null
+                        && vendRxService.isMonitoring()
+                ) {
 
-        startButton.setDisable(true);
-        stopButton.setDisable(false);
-
-        inputComboBox.setDisable(true);
-    }
-
-    private void stopMonitoring() {
-
-        vendRxService.stopMonitoring();
-
-        statusLabel.setText(
-                "Idle"
-        );
-
-        startButton.setDisable(false);
-        stopButton.setDisable(true);
-
-        inputComboBox.setDisable(false);
-
-        loadTransmissions();
-    }
-
-    @Override
-    public void stop() {
-
-        if (
-                vendRxService != null
-                && vendRxService.isMonitoring()
-        ) {
-
-            vendRxService.stopMonitoring();
+                vendRxService.stopMonitoring();
+                }
         }
-    }
 }

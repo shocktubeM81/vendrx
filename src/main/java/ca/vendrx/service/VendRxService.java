@@ -14,7 +14,7 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 
 public class VendRxService {
-
+        
     private final AudioConfig audioConfig;
     private final TransmissionRepository repository;
 
