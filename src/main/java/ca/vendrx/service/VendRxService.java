@@ -1,9 +1,11 @@
 package ca.vendrx.service;
 
 import ca.vendrx.audio.AudioInputMonitor;
+import ca.vendrx.audio.AudioMonitorListener;
 import ca.vendrx.audio.PreBuffer;
 import ca.vendrx.audio.TransmissionDetector;
 import ca.vendrx.audio.TransmissionRecorder;
+import ca.vendrx.audio.AudioMonitorListener;
 import ca.vendrx.config.AudioConfig;
 import ca.vendrx.database.TransmissionRepository;
 
@@ -18,6 +20,14 @@ public class VendRxService {
 
     private AudioInputMonitor monitor;
     private Thread monitoringThread;
+    private AudioMonitorListener listener;
+
+
+    public void setAudioMonitorListener(
+            AudioMonitorListener listener
+    ) {
+        this.listener = listener;
+    }
 
     public VendRxService(
             AudioConfig audioConfig,
@@ -68,7 +78,8 @@ public class VendRxService {
                         detector,
                         recorder,
                         preBuffer,
-                        repository
+                        repository,
+                        listener
                 );
 
         monitoringThread =
