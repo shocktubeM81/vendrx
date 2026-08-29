@@ -4,8 +4,8 @@ import ca.vendrx.audio.AudioInputMonitor;
 import ca.vendrx.audio.PreBuffer;
 import ca.vendrx.audio.TransmissionDetector;
 import ca.vendrx.audio.TransmissionRecorder;
-import ca.vendrx.audio.PreBuffer;
 import ca.vendrx.database.TransmissionRepository;
+import ca.vendrx.model.Transmission;
 
 import javax.sound.sampled.*;
 import java.util.ArrayList;
@@ -24,6 +24,44 @@ public class Main {
                 new TransmissionRepository();
 
         repository.initialize();
+
+        List<Transmission> recentTransmissions =
+                repository.findRecent(10);
+
+        System.out.println();
+
+        if (recentTransmissions.isEmpty()) {
+
+            System.out.println(
+                    "No previous transmissions."
+            );
+
+        } else {
+
+            System.out.println(
+                    "Recent transmissions:"
+            );
+
+            System.out.println();
+
+            for (int i = 0;
+                i < recentTransmissions.size();
+                i++) {
+
+                Transmission transmission =
+                        recentTransmissions.get(i);
+
+                System.out.printf(
+                        "[%d] %s | %.3f s | RMS %.4f%n",
+                        i + 1,
+                        transmission.getStartTime(),
+                        transmission
+                                .getDuration()
+                                .toMillis() / 1000.0,
+                        transmission.getAverageRms()
+                );
+            }
+        }
 
         System.out.println();
 

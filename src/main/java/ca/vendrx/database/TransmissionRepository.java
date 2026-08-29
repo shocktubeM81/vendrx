@@ -9,6 +9,11 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.nio.file.Path;
+import java.sql.ResultSet;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TransmissionRepository {
 
@@ -135,6 +140,86 @@ public class TransmissionRepository {
 
             throw new RuntimeException(
                     "Unable to save transmission.",
+                    e
+            );
+        }
+    }
+
+    public List<Transmission> findRecent(int limit) {
+
+        if (limit <= 0) {
+            throw new IllegalArgumentException(
+                    "limit must be greater than 0"
+            );
+        }
+
+        String sql = """
+                SELECT
+                    start_time,
+                    end_time,
+                    file_path,
+                    average_rms,
+                    max_rms
+                FROM transmission
+                ORDER BY id DESC
+                LIMIT ?;
+                """;
+
+        List<Transmission> transmissions =
+                new ArrayList<>();
+
+        try (
+                Connection connection =
+                        DriverManager.getConnection(databaseUrl);
+
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+            statement.setInt(1, limit);
+
+            try (ResultSet resultSet =
+                        statement.executeQuery()) {
+
+                while (resultSet.next()) {
+
+                    Transmission transmission =
+                            new Transmission(
+                                    LocalDateTime.parse(
+                                            resultSet.getString(
+                                                    "start_time"
+                                            )
+                                    ),
+                                    LocalDateTime.parse(
+                                            resultSet.getString(
+                                                    "end_time"
+                                            )
+                                    ),
+                                    Path.of(
+                                            resultSet.getString(
+                                                    "file_path"
+                                            )
+                                    ),
+                                    resultSet.getDouble(
+                                            "average_rms"
+                                    ),
+                                    resultSet.getDouble(
+                                            "max_rms"
+                                    )
+                            );
+
+                    transmissions.add(
+                            transmission
+                    );
+                }
+            }
+
+            return transmissions;
+
+        } catch (SQLException e) {
+
+            throw new RuntimeException(
+                    "Unable to read transmissions.",
                     e
             );
         }
