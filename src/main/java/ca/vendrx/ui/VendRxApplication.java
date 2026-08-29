@@ -18,6 +18,7 @@ import javafx.stage.Stage;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 
+import java.nio.file.Files;
 import java.time.format.DateTimeFormatter;
 
 import javax.sound.sampled.Mixer;
@@ -36,6 +37,7 @@ public class VendRxApplication extends Application {
         private Button stopButton;
         private Button playButton;
         private Button stopPlaybackButton;
+        private Button deleteButton;
 
         private Label statusLabel;
         private Label detailStartLabel;
@@ -345,10 +347,12 @@ public class VendRxApplication extends Application {
                                                 );
 
                                                 playButton.setDisable(false);
+                                                deleteButton.setDisable(false);
 
                                         } else {
 
                                                 playButton.setDisable(true);
+                                                deleteButton.setDisable(true);
                                         }
                                 }
                         );
@@ -486,10 +490,12 @@ public class VendRxApplication extends Application {
 
                 playButton =
                         new Button("▶ Play");
-
                 stopPlaybackButton =
                         new Button("■ Stop");
+                deleteButton =
+                        new Button("Delete");
 
+                deleteButton.setDisable(true);
                 playButton.setDisable(true);
                 stopPlaybackButton.setDisable(true);
 
@@ -503,11 +509,17 @@ public class VendRxApplication extends Application {
                                 audioPlaybackService.stop()
                 );
 
+                deleteButton.setOnAction(
+                        event ->
+                                deleteSelectedTransmission()
+                );
+
                 HBox playbackControls =
                         new HBox(
                                 10,
                                 playButton,
-                                stopPlaybackButton
+                                stopPlaybackButton,
+                                deleteButton
                         );
 
                 VBox panel =
@@ -699,6 +711,110 @@ public class VendRxApplication extends Application {
                 stopButton.setDisable(false);
 
                 inputComboBox.setDisable(true);
+        }
+
+        private void deleteSelectedTransmission() {
+
+                Transmission transmission =
+                        transmissionTable
+                                .getSelectionModel()
+                                .getSelectedItem();
+
+                if (transmission == null) {
+                        return;
+                }
+
+                Alert confirmation =
+                        new Alert(
+                                Alert.AlertType.CONFIRMATION
+                        );
+
+                confirmation.setTitle(
+                        "Delete transmission"
+                );
+
+                confirmation.setHeaderText(
+                        "Delete this transmission?"
+                );
+
+                confirmation.setContentText(
+                        transmission
+                                .getFilePath()
+                                .getFileName()
+                                .toString()
+                        + "\n\nThe WAV file and database entry will be deleted."
+                );
+
+                ButtonType result =
+                        confirmation
+                                .showAndWait()
+                                .orElse(
+                                        ButtonType.CANCEL
+                                );
+
+                if (result != ButtonType.OK) {
+                        return;
+                }
+
+                try {
+
+                        if (audioPlaybackService.isPlaying()) {
+                        audioPlaybackService.stop();
+                        }
+
+                        Files.deleteIfExists(
+                                transmission.getFilePath()
+                        );
+
+                        repository.delete(
+                                transmission
+                        );
+
+                        transmissionTable
+                                .getItems()
+                                .remove(transmission);
+
+                        clearTransmissionDetails();
+
+                        statusLabel.setText(
+                                "Transmission deleted."
+                        );
+
+                } catch (Exception e) {
+
+                        Alert error =
+                                new Alert(
+                                        Alert.AlertType.ERROR
+                                );
+
+                        error.setTitle(
+                                "Delete failed"
+                        );
+
+                        error.setHeaderText(
+                                "Unable to delete transmission."
+                        );
+
+                        error.setContentText(
+                                e.getMessage()
+                        );
+
+                        error.showAndWait();
+                }
+        }
+
+        private void clearTransmissionDetails() {
+
+                detailStartLabel.setText("-");
+                detailEndLabel.setText("-");
+                detailDurationLabel.setText("-");
+                detailAverageRmsLabel.setText("-");
+                detailMaxRmsLabel.setText("-");
+                detailFileLabel.setText("-");
+
+                playButton.setDisable(true);
+                stopPlaybackButton.setDisable(true);
+                deleteButton.setDisable(true);
         }
 
         private void restoreStatus() {
