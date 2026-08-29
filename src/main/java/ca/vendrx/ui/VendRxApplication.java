@@ -7,6 +7,7 @@ import ca.vendrx.model.Transmission;
 import ca.vendrx.service.VendRxService;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -94,6 +95,16 @@ public class VendRxApplication extends Application {
                         audioConfig,
                         repository
                 );
+
+        vendRxService.setAudioMonitorListener(
+                transmission ->
+                        Platform.runLater(
+                                () ->
+                                        transmissionTable
+                                                .getItems()
+                                                .add(0, transmission)
+                        )
+        );
 
         audioDeviceService =
                 new AudioDeviceService();
