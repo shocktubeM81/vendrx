@@ -11,15 +11,18 @@ public class AudioInputMonitor {
     private final Mixer.Info mixerInfo;
     private final TransmissionDetector transmissionDetector;
     private final TransmissionRecorder recorder;
+    private final PreBuffer preBuffer;
 
     public AudioInputMonitor(
         Mixer.Info mixerInfo,
         TransmissionDetector transmissionDetector,
-        TransmissionRecorder recorder
+        TransmissionRecorder recorder,
+        PreBuffer preBuffer
     ) {
         this.mixerInfo = mixerInfo;
         this.transmissionDetector = transmissionDetector;
         this.recorder = recorder;
+        this.preBuffer = preBuffer;
     }
 
     public void start() throws LineUnavailableException {
@@ -74,17 +77,36 @@ public class AudioInputMonitor {
                     && currentState == TransmissionDetector.State.RECORDING) {
 
                 recorder.start();
+
+                byte[] bufferedAudio =
+                        preBuffer.getAudio();
+
+                recorder.append(
+                        bufferedAudio,
+                        bufferedAudio.length
+                );
             }
 
             if (currentState == TransmissionDetector.State.RECORDING) {
 
-                recorder.append(buffer, bytesRead);
+                recorder.append(
+                        buffer,
+                        bytesRead
+                );
             }
 
             if (previousState == TransmissionDetector.State.RECORDING
                     && currentState == TransmissionDetector.State.IDLE) {
 
                 recorder.stop();
+            }
+
+            if (currentState == TransmissionDetector.State.IDLE) {
+
+                preBuffer.add(
+                        buffer,
+                        bytesRead
+                );
             }
 
             printMeter(rms, currentState);
