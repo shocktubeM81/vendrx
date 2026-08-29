@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import ca.vendrx.model.Transmission;
+import ca.vendrx.config.AppPaths;
 
 public class TransmissionRecorder {
 
@@ -14,18 +16,43 @@ public class TransmissionRecorder {
     private final Path recordingsDirectory;
 
     private ByteArrayOutputStream audioBuffer;
+    private LocalDateTime startTime;
+
+    private double rmsSum = 0.0;
+    private double maxRms = 0.0;
+    private long rmsSampleCount = 0;
 
     public TransmissionRecorder(AudioFormat format) {
         this.format = format;
-        this.recordingsDirectory = Path.of("recordings");
+        this.recordingsDirectory = AppPaths.getRecordingsDirectory();
     }
 
     public void start() {
 
         audioBuffer = new ByteArrayOutputStream();
 
+        startTime = LocalDateTime.now();
+
+        rmsSum = 0.0;
+        maxRms = 0.0;
+        rmsSampleCount = 0;
+
         System.out.println();
         System.out.println("Recording started");
+    }
+
+    public void addRms(double rms) {
+
+        if (audioBuffer == null) {
+            return;
+        }
+
+        rmsSum += rms;
+        rmsSampleCount++;
+
+        if (rms > maxRms) {
+            maxRms = rms;
+        }
     }
 
     public void append(byte[] data, int length) {
@@ -35,32 +62,59 @@ public class TransmissionRecorder {
         }
     }
 
-    public void stop() {
+    public Transmission stop() {
 
         if (audioBuffer == null) {
-            return;
+            return null;
         }
 
         try {
 
             Files.createDirectories(recordingsDirectory);
 
-            String timestamp = LocalDateTime.now().format(
-                    DateTimeFormatter.ofPattern(
-                            "yyyy-MM-dd_HH-mm-ss"
-                    )
+            LocalDateTime endTime =
+                    LocalDateTime.now();
+
+            String timestamp =
+                    startTime.format(
+                            DateTimeFormatter.ofPattern(
+                                    "yyyy-MM-dd_HH-mm-ss"
+                            )
+                    );
+
+            Path file =
+                    recordingsDirectory.resolve(
+                            timestamp + ".wav"
+                    );
+
+            writeWaveFile(
+                    file,
+                    audioBuffer.toByteArray()
             );
 
-            Path file = recordingsDirectory.resolve(
-                    timestamp + ".wav"
-            );
+            double averageRms = 0.0;
 
-            writeWaveFile(file, audioBuffer.toByteArray());
+            if (rmsSampleCount > 0) {
+                averageRms =
+                        rmsSum / rmsSampleCount;
+            }
+
+            Transmission transmission =
+                    new Transmission(
+                            startTime,
+                            endTime,
+                            file,
+                            averageRms,
+                            maxRms
+                    );
 
             System.out.println();
             System.out.println(
-                    "Saved: " + file.toAbsolutePath()
+                    "Saved: "
+                            + file.toAbsolutePath()
             );
+
+            return transmission;
 
         } catch (IOException e) {
 
@@ -68,6 +122,8 @@ public class TransmissionRecorder {
                     "Unable to save recording: "
                             + e.getMessage()
             );
+
+            return null;
 
         } finally {
 

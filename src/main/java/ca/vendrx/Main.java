@@ -5,6 +5,7 @@ import ca.vendrx.audio.PreBuffer;
 import ca.vendrx.audio.TransmissionDetector;
 import ca.vendrx.audio.TransmissionRecorder;
 import ca.vendrx.audio.PreBuffer;
+import ca.vendrx.database.TransmissionRepository;
 
 import javax.sound.sampled.*;
 import java.util.ArrayList;
@@ -17,6 +18,13 @@ public class Main {
 
         System.out.println("VendRx");
         System.out.println("Radio signal logging and transcription");
+        System.out.println();
+
+        TransmissionRepository repository =
+                new TransmissionRepository();
+
+        repository.initialize();
+
         System.out.println();
 
         List<Mixer.Info> inputs = getAudioInputs();
@@ -83,7 +91,8 @@ public class Main {
                             inputs.get(selection),
                             detector,
                             recorder,
-                            preBuffer
+                            preBuffer,
+                            repository
                     );
 
             monitor.start();
