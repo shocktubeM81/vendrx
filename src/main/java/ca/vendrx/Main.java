@@ -6,9 +6,9 @@ import ca.vendrx.audio.TransmissionDetector;
 import ca.vendrx.audio.TransmissionRecorder;
 import ca.vendrx.database.TransmissionRepository;
 import ca.vendrx.model.Transmission;
-import ca.vendrx.audio.AudioDeviceService;
 
 import javax.sound.sampled.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
@@ -65,9 +65,7 @@ public class Main {
 
         System.out.println();
 
-        AudioDeviceService audioDeviceService = new AudioDeviceService();
-
-        List<Mixer.Info> inputs = audioDeviceService.getInputDevices();
+        List<Mixer.Info> inputs = getAudioInputs();
 
         if (inputs.isEmpty()) {
             System.out.println("No audio input device found.");
@@ -144,5 +142,28 @@ public class Main {
                     + e.getMessage()
             );
         }
+    }
+
+    private static List<Mixer.Info> getAudioInputs() {
+
+        List<Mixer.Info> inputs = new ArrayList<>();
+
+        for (Mixer.Info mixerInfo : AudioSystem.getMixerInfo()) {
+
+            Mixer mixer = AudioSystem.getMixer(mixerInfo);
+
+            for (Line.Info lineInfo : mixer.getTargetLineInfo()) {
+
+                if (TargetDataLine.class.isAssignableFrom(
+                        lineInfo.getLineClass()
+                )) {
+
+                    inputs.add(mixerInfo);
+                    break;
+                }
+            }
+        }
+
+        return inputs;
     }
 }
