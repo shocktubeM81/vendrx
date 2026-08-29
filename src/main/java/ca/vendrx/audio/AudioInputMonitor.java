@@ -211,13 +211,22 @@ public class AudioInputMonitor {
 
         if (transmission != null) {
 
-            repository.save(transmission);
+            Transmission savedTransmission =
+                    repository.save(
+                            transmission
+                    );
+
             if (listener != null) {
-                listener.onTransmissionSaved(transmission);
+
+                listener.onTransmissionSaved(
+                        savedTransmission
+                );
             }
 
             System.out.println();
-            System.out.println(transmission);
+            System.out.println(
+                    savedTransmission
+            );
         }
     }
 

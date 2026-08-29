@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 public class Transmission {
 
+    private final Long id;
+
     private final LocalDateTime startTime;
     private final LocalDateTime endTime;
 
@@ -14,6 +16,10 @@ public class Transmission {
     private final double averageRms;
     private final double maxRms;
 
+    /*
+     * Constructor for a new transmission
+     * that has not yet been saved to the database.
+     */
     public Transmission(
             LocalDateTime startTime,
             LocalDateTime endTime,
@@ -21,11 +27,59 @@ public class Transmission {
             double averageRms,
             double maxRms
     ) {
+
+        this(
+                null,
+                startTime,
+                endTime,
+                filePath,
+                averageRms,
+                maxRms
+        );
+    }
+
+    /*
+     * Constructor for a transmission
+     * loaded from the database.
+     */
+    public Transmission(
+            long id,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Path filePath,
+            double averageRms,
+            double maxRms
+    ) {
+
+        this(
+                Long.valueOf(id),
+                startTime,
+                endTime,
+                filePath,
+                averageRms,
+                maxRms
+        );
+    }
+
+    private Transmission(
+            Long id,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Path filePath,
+            double averageRms,
+            double maxRms
+    ) {
+
+        this.id = id;
         this.startTime = startTime;
         this.endTime = endTime;
         this.filePath = filePath;
         this.averageRms = averageRms;
         this.maxRms = maxRms;
+    }
+
+    public Long getId() {
+        return id;
     }
 
     public LocalDateTime getStartTime() {
@@ -37,7 +91,10 @@ public class Transmission {
     }
 
     public Duration getDuration() {
-        return Duration.between(startTime, endTime);
+        return Duration.between(
+                startTime,
+                endTime
+        );
     }
 
     public Path getFilePath() {
@@ -54,8 +111,10 @@ public class Transmission {
 
     @Override
     public String toString() {
+
         return "Transmission{" +
-                "startTime=" + startTime +
+                "id=" + id +
+                ", startTime=" + startTime +
                 ", endTime=" + endTime +
                 ", duration=" + getDuration().toMillis() + " ms" +
                 ", filePath=" + filePath +

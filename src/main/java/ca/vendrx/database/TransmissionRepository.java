@@ -78,72 +78,113 @@ public class TransmissionRepository {
         }
     }
 
-    public void save(Transmission transmission) {
+    public Transmission save(
+                Transmission transmission
+        ) {
 
         String sql = """
                 INSERT INTO transmission (
-                    start_time,
-                    end_time,
-                    duration_ms,
-                    file_path,
-                    average_rms,
-                    max_rms
+                        start_time,
+                        end_time,
+                        duration_ms,
+                        file_path,
+                        average_rms,
+                        max_rms
                 )
                 VALUES (?, ?, ?, ?, ?, ?);
                 """;
 
         try (
                 Connection connection =
-                        DriverManager.getConnection(databaseUrl);
+                        DriverManager.getConnection(
+                                databaseUrl
+                        );
 
                 PreparedStatement statement =
-                        connection.prepareStatement(sql)
+                        connection.prepareStatement(
+                                sql,
+                                Statement.RETURN_GENERATED_KEYS
+                        )
         ) {
 
-            statement.setString(
-                    1,
-                    transmission.getStartTime().toString()
-            );
+                statement.setString(
+                        1,
+                        transmission
+                                .getStartTime()
+                                .toString()
+                );
 
-            statement.setString(
-                    2,
-                    transmission.getEndTime().toString()
-            );
+                statement.setString(
+                        2,
+                        transmission
+                                .getEndTime()
+                                .toString()
+                );
 
-            statement.setLong(
-                    3,
-                    transmission.getDuration().toMillis()
-            );
+                statement.setLong(
+                        3,
+                        transmission
+                                .getDuration()
+                                .toMillis()
+                );
 
-            statement.setString(
-                    4,
-                    transmission.getFilePath().toString()
-            );
+                statement.setString(
+                        4,
+                        transmission
+                                .getFilePath()
+                                .toString()
+                );
 
-            statement.setDouble(
-                    5,
-                    transmission.getAverageRms()
-            );
+                statement.setDouble(
+                        5,
+                        transmission.getAverageRms()
+                );
 
-            statement.setDouble(
-                    6,
-                    transmission.getMaxRms()
-            );
+                statement.setDouble(
+                        6,
+                        transmission.getMaxRms()
+                );
 
-            statement.executeUpdate();
+                statement.executeUpdate();
 
-            System.out.println(
-                    "Transmission saved to database."
-            );
+                try (
+                        ResultSet generatedKeys =
+                                statement.getGeneratedKeys()
+                ) {
+
+                if (!generatedKeys.next()) {
+
+                        throw new SQLException(
+                                "No ID generated for transmission."
+                        );
+                }
+
+                long id =
+                        generatedKeys.getLong(1);
+
+                System.out.println(
+                        "Transmission saved with ID "
+                        + id
+                );
+
+                return new Transmission(
+                        id,
+                        transmission.getStartTime(),
+                        transmission.getEndTime(),
+                        transmission.getFilePath(),
+                        transmission.getAverageRms(),
+                        transmission.getMaxRms()
+                );
+                }
 
         } catch (SQLException e) {
 
-            throw new RuntimeException(
-                    "Unable to save transmission.",
-                    e
-            );
+                throw new RuntimeException(
+                        "Unable to save transmission.",
+                        e
+                );
         }
-    }
+        }
 
     public List<Transmission> findRecent(int limit) {
 
@@ -155,6 +196,7 @@ public class TransmissionRepository {
 
         String sql = """
                 SELECT
+                    id,
                     start_time,
                     end_time,
                     file_path,
@@ -184,29 +226,32 @@ public class TransmissionRepository {
                 while (resultSet.next()) {
 
                     Transmission transmission =
-                            new Transmission(
-                                    LocalDateTime.parse(
-                                            resultSet.getString(
-                                                    "start_time"
-                                            )
-                                    ),
-                                    LocalDateTime.parse(
-                                            resultSet.getString(
-                                                    "end_time"
-                                            )
-                                    ),
-                                    Path.of(
-                                            resultSet.getString(
-                                                    "file_path"
-                                            )
-                                    ),
-                                    resultSet.getDouble(
-                                            "average_rms"
-                                    ),
-                                    resultSet.getDouble(
-                                            "max_rms"
-                                    )
-                            );
+                        new Transmission(
+                                resultSet.getLong(
+                                        "id"
+                                ),
+                                LocalDateTime.parse(
+                                        resultSet.getString(
+                                                "start_time"
+                                        )
+                                ),
+                                LocalDateTime.parse(
+                                        resultSet.getString(
+                                                "end_time"
+                                        )
+                                ),
+                                Path.of(
+                                        resultSet.getString(
+                                                "file_path"
+                                        )
+                                ),
+                                resultSet.getDouble(
+                                        "average_rms"
+                                ),
+                                resultSet.getDouble(
+                                        "max_rms"
+                                )
+                        );
 
                     transmissions.add(
                             transmission
@@ -225,29 +270,49 @@ public class TransmissionRepository {
         }
     }
     
-    public void delete(Transmission transmission) {
+        public void delete(
+                Transmission transmission
+        ) {
+
+        if (transmission.getId() == null) {
+
+                throw new IllegalArgumentException(
+                        "Cannot delete a transmission without an ID."
+                );
+        }
 
         String sql = """
                 DELETE FROM transmission
-                WHERE file_path = ?
+                WHERE id = ?;
                 """;
 
         try (
                 Connection connection =
-                        DriverManager.getConnection(databaseUrl);
+                        DriverManager.getConnection(
+                                databaseUrl
+                        );
 
                 PreparedStatement statement =
-                        connection.prepareStatement(sql)
+                        connection.prepareStatement(
+                                sql
+                        )
         ) {
 
-                statement.setString(
+                statement.setLong(
                         1,
-                        transmission
-                                .getFilePath()
-                                .toString()
+                        transmission.getId()
                 );
 
-                statement.executeUpdate();
+                int deletedRows =
+                        statement.executeUpdate();
+
+                if (deletedRows == 0) {
+
+                throw new IllegalStateException(
+                        "Transmission not found in database: "
+                        + transmission.getId()
+                );
+                }
 
         } catch (SQLException e) {
 
