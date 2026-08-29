@@ -1,30 +1,33 @@
 package ca.vendrx.audio;
 
-import javax.sound.sampled.*;
-
-import ca.vendrx.model.Transmission;
 import ca.vendrx.database.TransmissionRepository;
+import ca.vendrx.model.Transmission;
+
+import javax.sound.sampled.*;
 
 public class AudioInputMonitor {
 
-    private static final float SAMPLE_RATE = 44100.0f;
-    private static final int SAMPLE_SIZE_BITS = 16;
-    private static final int CHANNELS = 1;
-
     private final Mixer.Info mixerInfo;
+    private final AudioFormat format;
+
     private final TransmissionDetector transmissionDetector;
     private final TransmissionRecorder recorder;
     private final PreBuffer preBuffer;
     private final TransmissionRepository repository;
 
+    private volatile boolean running = false;
+    private volatile TargetDataLine line;
+
     public AudioInputMonitor(
-        Mixer.Info mixerInfo,
-        TransmissionDetector transmissionDetector,
-        TransmissionRecorder recorder,
-        PreBuffer preBuffer,
-        TransmissionRepository repository
+            Mixer.Info mixerInfo,
+            AudioFormat format,
+            TransmissionDetector transmissionDetector,
+            TransmissionRecorder recorder,
+            PreBuffer preBuffer,
+            TransmissionRepository repository
     ) {
         this.mixerInfo = mixerInfo;
+        this.format = format;
         this.transmissionDetector = transmissionDetector;
         this.recorder = recorder;
         this.preBuffer = preBuffer;
@@ -33,119 +36,217 @@ public class AudioInputMonitor {
 
     public void start() throws LineUnavailableException {
 
-        AudioFormat format = new AudioFormat(
-                SAMPLE_RATE,
-                SAMPLE_SIZE_BITS,
-                CHANNELS,
-                true,
-                false
-        );
+        Mixer mixer =
+                AudioSystem.getMixer(mixerInfo);
 
-        Mixer mixer = AudioSystem.getMixer(mixerInfo);
+        DataLine.Info lineInfo =
+                new DataLine.Info(
+                        TargetDataLine.class,
+                        format
+                );
 
-        DataLine.Info lineInfo = new DataLine.Info(
-                TargetDataLine.class,
-                format
-        );
-
-        TargetDataLine line =
+        TargetDataLine activeLine =
                 (TargetDataLine) mixer.getLine(lineInfo);
 
-        line.open(format);
-        line.start();
+        activeLine.open(format);
+        activeLine.start();
+
+        line = activeLine;
+        running = true;
 
         System.out.println();
-        System.out.println("Monitoring: " + mixerInfo.getName());
-        System.out.println("Ctrl+C to stop.");
+        System.out.println(
+                "Monitoring: " + mixerInfo.getName()
+        );
+        System.out.println(
+                "Ctrl+C to stop."
+        );
         System.out.println();
 
         byte[] buffer = new byte[4096];
 
-        while (true) {
+        try {
 
-            int bytesRead = line.read(
-                    buffer,
-                    0,
-                    buffer.length
-            );
+            while (running) {
 
-            double rms = calculateRms(buffer, bytesRead);
+                int bytesRead;
 
-            TransmissionDetector.State previousState =
-                    transmissionDetector.getState();
+                try {
 
-            transmissionDetector.update(rms);
+                    bytesRead =
+                            activeLine.read(
+                                    buffer,
+                                    0,
+                                    buffer.length
+                            );
 
-            TransmissionDetector.State currentState =
-                    transmissionDetector.getState();
+                } catch (IllegalStateException e) {
 
-            if (previousState == TransmissionDetector.State.IDLE
-                    && currentState == TransmissionDetector.State.RECORDING) {
+                    if (!running) {
+                        break;
+                    }
 
-                recorder.start();
-
-                byte[] bufferedAudio =
-                        preBuffer.getAudio();
-
-                recorder.append(
-                        bufferedAudio,
-                        bufferedAudio.length
-                );
-            }
-
-            if (currentState == TransmissionDetector.State.RECORDING) {
-
-                recorder.append(
-                        buffer,
-                        bytesRead
-                );
-                recorder.addRms(rms);
-            }
-
-            if (previousState == TransmissionDetector.State.RECORDING
-                    && currentState == TransmissionDetector.State.IDLE) {
-
-                Transmission transmission =
-                        recorder.stop();
-
-                if (transmission != null) {
-
-                    repository.save(transmission);
-
-                    System.out.println();
-                    System.out.println(transmission);
+                    throw e;
                 }
-            }
 
-            if (currentState == TransmissionDetector.State.IDLE) {
+                if (bytesRead <= 0) {
+                    continue;
+                }
 
-                preBuffer.add(
-                        buffer,
-                        bytesRead
+                double rms =
+                        calculateRms(
+                                buffer,
+                                bytesRead
+                        );
+
+                TransmissionDetector.State previousState =
+                        transmissionDetector.getState();
+
+                transmissionDetector.update(rms);
+
+                TransmissionDetector.State currentState =
+                        transmissionDetector.getState();
+
+                if (
+                        previousState == TransmissionDetector.State.IDLE
+                        &&
+                        currentState == TransmissionDetector.State.RECORDING
+                ) {
+
+                    recorder.start();
+
+                    byte[] bufferedAudio =
+                            preBuffer.getAudio();
+
+                    recorder.append(
+                            bufferedAudio,
+                            bufferedAudio.length
+                    );
+                }
+
+                if (
+                        currentState == TransmissionDetector.State.RECORDING
+                ) {
+
+                    recorder.append(
+                            buffer,
+                            bytesRead
+                    );
+
+                    recorder.addRms(rms);
+                }
+
+                if (
+                        previousState == TransmissionDetector.State.RECORDING
+                        &&
+                        currentState == TransmissionDetector.State.IDLE
+                ) {
+
+                    saveCurrentTransmission();
+                }
+
+                if (
+                        currentState == TransmissionDetector.State.IDLE
+                ) {
+
+                    preBuffer.add(
+                            buffer,
+                            bytesRead
+                    );
+                }
+
+                printMeter(
+                        rms,
+                        currentState
                 );
             }
 
-            printMeter(rms, currentState);
+        } finally {
+
+            running = false;
+            line = null;
+
+            if (activeLine.isRunning()) {
+                activeLine.stop();
+            }
+
+            if (activeLine.isOpen()) {
+                activeLine.close();
+            }
+
+            // Save a partial transmission if monitoring
+            // was stopped while recording.
+            saveCurrentTransmission();
+
+            System.out.println();
+            System.out.println(
+                    "Monitoring stopped."
+            );
         }
     }
 
-    private double calculateRms(byte[] buffer, int length) {
+    public void stop() {
+
+        running = false;
+
+        TargetDataLine activeLine = line;
+
+        if (activeLine != null) {
+            activeLine.stop();
+            activeLine.close();
+        }
+    }
+
+    public boolean isRunning() {
+        return running;
+    }
+
+    private void saveCurrentTransmission() {
+
+        Transmission transmission =
+                recorder.stop();
+
+        if (transmission != null) {
+
+            repository.save(transmission);
+
+            System.out.println();
+            System.out.println(transmission);
+        }
+    }
+
+    private double calculateRms(
+            byte[] buffer,
+            int length
+    ) {
 
         double sum = 0.0;
         int sampleCount = 0;
 
-        for (int i = 0; i < length - 1; i += 2) {
+        for (
+                int i = 0;
+                i < length - 1;
+                i += 2
+        ) {
 
-            int low = buffer[i] & 0xFF;
-            int high = buffer[i + 1];
+            int low =
+                    buffer[i] & 0xFF;
+
+            int high =
+                    buffer[i + 1];
 
             short sample =
-                    (short) ((high << 8) | low);
+                    (short) (
+                            (high << 8)
+                            | low
+                    );
 
             double normalized =
                     sample / 32768.0;
 
-            sum += normalized * normalized;
+            sum +=
+                    normalized
+                    * normalized;
 
             sampleCount++;
         }
@@ -154,7 +255,9 @@ public class AudioInputMonitor {
             return 0.0;
         }
 
-        return Math.sqrt(sum / sampleCount);
+        return Math.sqrt(
+                sum / sampleCount
+        );
     }
 
     private void printMeter(
@@ -162,10 +265,17 @@ public class AudioInputMonitor {
             TransmissionDetector.State state
     ) {
 
-        int barCount = (int) (rms * 200);
-        barCount = Math.min(barCount, 50);
+        int barCount =
+                (int) (rms * 200);
 
-        String bar = "#".repeat(barCount);
+        barCount =
+                Math.min(
+                        barCount,
+                        50
+                );
+
+        String bar =
+                "#".repeat(barCount);
 
         System.out.printf(
                 "\rRMS: %.5f | %-50s | %-9s",
