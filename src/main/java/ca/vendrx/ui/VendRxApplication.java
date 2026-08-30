@@ -236,13 +236,14 @@ public class VendRxApplication extends Application {
                                 .toString()));
 
         transmissionTable
-                .getColumns()
-                .addAll(
+        .getColumns()
+        .addAll(
+                List.of(
                         timeColumn,
                         durationColumn,
                         averageRmsColumn,
                         maxRmsColumn,
-                        fileColumn);
+                        fileColumn));
 
         detailsPane = new TransmissionDetailsPane();
 
