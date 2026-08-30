@@ -4,11 +4,9 @@ import java.nio.file.Path;
 
 public final class AppPaths {
 
-    private static final Path DATA_DIRECTORY =
-            Path.of(
-                    System.getProperty("user.home"),
-                    "VendRxData"
-            );
+    private static final Path DATA_DIRECTORY = Path.of(
+            System.getProperty("user.home"),
+            "VendRxData");
 
     private AppPaths() {
         // Prevent instantiation

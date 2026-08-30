@@ -26,8 +26,7 @@ public class AudioInputMonitor {
             TransmissionRecorder recorder,
             PreBuffer preBuffer,
             TransmissionRepository repository,
-            AudioMonitorListener listener
-    ) {
+            AudioMonitorListener listener) {
         this.mixerInfo = mixerInfo;
         this.format = format;
         this.transmissionDetector = transmissionDetector;
@@ -39,17 +38,13 @@ public class AudioInputMonitor {
 
     public void start() throws LineUnavailableException {
 
-        Mixer mixer =
-                AudioSystem.getMixer(mixerInfo);
+        Mixer mixer = AudioSystem.getMixer(mixerInfo);
 
-        DataLine.Info lineInfo =
-                new DataLine.Info(
-                        TargetDataLine.class,
-                        format
-                );
+        DataLine.Info lineInfo = new DataLine.Info(
+                TargetDataLine.class,
+                format);
 
-        TargetDataLine activeLine =
-                (TargetDataLine) mixer.getLine(lineInfo);
+        TargetDataLine activeLine = (TargetDataLine) mixer.getLine(lineInfo);
 
         activeLine.open(format);
         activeLine.start();
@@ -59,11 +54,9 @@ public class AudioInputMonitor {
 
         System.out.println();
         System.out.println(
-                "Monitoring: " + mixerInfo.getName()
-        );
+                "Monitoring: " + mixerInfo.getName());
         System.out.println(
-                "Ctrl+C to stop."
-        );
+                "Ctrl+C to stop.");
         System.out.println();
 
         byte[] buffer = new byte[4096];
@@ -76,12 +69,10 @@ public class AudioInputMonitor {
 
                 try {
 
-                    bytesRead =
-                            activeLine.read(
-                                    buffer,
-                                    0,
-                                    buffer.length
-                            );
+                    bytesRead = activeLine.read(
+                            buffer,
+                            0,
+                            buffer.length);
 
                 } catch (IllegalStateException e) {
 
@@ -96,72 +87,55 @@ public class AudioInputMonitor {
                     continue;
                 }
 
-                double rms =
-                        calculateRms(
-                                buffer,
-                                bytesRead
-                        );
+                double rms = calculateRms(
+                        buffer,
+                        bytesRead);
 
-                TransmissionDetector.State previousState =
-                        transmissionDetector.getState();
+                TransmissionDetector.State previousState = transmissionDetector.getState();
 
                 transmissionDetector.update(rms);
 
-                TransmissionDetector.State currentState =
-                        transmissionDetector.getState();
+                TransmissionDetector.State currentState = transmissionDetector.getState();
 
-                if (
-                        previousState == TransmissionDetector.State.IDLE
+                if (previousState == TransmissionDetector.State.IDLE
                         &&
-                        currentState == TransmissionDetector.State.RECORDING
-                ) {
+                        currentState == TransmissionDetector.State.RECORDING) {
 
                     recorder.start();
 
-                    byte[] bufferedAudio =
-                            preBuffer.getAudio();
+                    byte[] bufferedAudio = preBuffer.getAudio();
 
                     recorder.append(
                             bufferedAudio,
-                            bufferedAudio.length
-                    );
+                            bufferedAudio.length);
                 }
 
-                if (
-                        currentState == TransmissionDetector.State.RECORDING
-                ) {
+                if (currentState == TransmissionDetector.State.RECORDING) {
 
                     recorder.append(
                             buffer,
-                            bytesRead
-                    );
+                            bytesRead);
 
                     recorder.addRms(rms);
                 }
 
-                if (
-                        previousState == TransmissionDetector.State.RECORDING
+                if (previousState == TransmissionDetector.State.RECORDING
                         &&
-                        currentState == TransmissionDetector.State.IDLE
-                ) {
+                        currentState == TransmissionDetector.State.IDLE) {
 
                     saveCurrentTransmission();
                 }
 
-                if (
-                        currentState == TransmissionDetector.State.IDLE
-                ) {
+                if (currentState == TransmissionDetector.State.IDLE) {
 
                     preBuffer.add(
                             buffer,
-                            bytesRead
-                    );
+                            bytesRead);
                 }
 
                 printMeter(
                         rms,
-                        currentState
-                );
+                        currentState);
             }
 
         } finally {
@@ -183,8 +157,7 @@ public class AudioInputMonitor {
 
             System.out.println();
             System.out.println(
-                    "Monitoring stopped."
-            );
+                    "Monitoring stopped.");
         }
     }
 
@@ -206,61 +179,44 @@ public class AudioInputMonitor {
 
     private void saveCurrentTransmission() {
 
-        Transmission transmission =
-                recorder.stop();
+        Transmission transmission = recorder.stop();
 
         if (transmission != null) {
 
-            Transmission savedTransmission =
-                    repository.save(
-                            transmission
-                    );
+            Transmission savedTransmission = repository.save(
+                    transmission);
 
             if (listener != null) {
 
                 listener.onTransmissionSaved(
-                        savedTransmission
-                );
+                        savedTransmission);
             }
 
             System.out.println();
             System.out.println(
-                    savedTransmission
-            );
+                    savedTransmission);
         }
     }
 
     private double calculateRms(
             byte[] buffer,
-            int length
-    ) {
+            int length) {
 
         double sum = 0.0;
         int sampleCount = 0;
 
-        for (
-                int i = 0;
-                i < length - 1;
-                i += 2
-        ) {
+        for (int i = 0; i < length - 1; i += 2) {
 
-            int low =
-                    buffer[i] & 0xFF;
+            int low = buffer[i] & 0xFF;
 
-            int high =
-                    buffer[i + 1];
+            int high = buffer[i + 1];
 
-            short sample =
-                    (short) (
-                            (high << 8)
-                            | low
-                    );
+            short sample = (short) ((high << 8)
+                    | low);
 
-            double normalized =
-                    sample / 32768.0;
+            double normalized = sample / 32768.0;
 
-            sum +=
-                    normalized
+            sum += normalized
                     * normalized;
 
             sampleCount++;
@@ -271,32 +227,25 @@ public class AudioInputMonitor {
         }
 
         return Math.sqrt(
-                sum / sampleCount
-        );
+                sum / sampleCount);
     }
 
     private void printMeter(
             double rms,
-            TransmissionDetector.State state
-    ) {
+            TransmissionDetector.State state) {
 
-        int barCount =
-                (int) (rms * 200);
+        int barCount = (int) (rms * 200);
 
-        barCount =
-                Math.min(
-                        barCount,
-                        50
-                );
+        barCount = Math.min(
+                barCount,
+                50);
 
-        String bar =
-                "#".repeat(barCount);
+        String bar = "#".repeat(barCount);
 
         System.out.printf(
                 "\rRMS: %.5f | %-50s | %-9s",
                 rms,
                 bar,
-                state
-        );
+                state);
     }
 }

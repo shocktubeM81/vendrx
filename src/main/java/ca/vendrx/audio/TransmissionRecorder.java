@@ -72,47 +72,36 @@ public class TransmissionRecorder {
 
             Files.createDirectories(recordingsDirectory);
 
-            LocalDateTime endTime =
-                    LocalDateTime.now();
+            LocalDateTime endTime = LocalDateTime.now();
 
-            String timestamp =
-                    startTime.format(
-                            DateTimeFormatter.ofPattern(
-                                    "yyyy-MM-dd_HH-mm-ss"
-                            )
-                    );
+            String timestamp = startTime.format(
+                    DateTimeFormatter.ofPattern(
+                            "yyyy-MM-dd_HH-mm-ss"));
 
-            Path file =
-                    recordingsDirectory.resolve(
-                            timestamp + ".wav"
-                    );
+            Path file = recordingsDirectory.resolve(
+                    timestamp + ".wav");
 
             writeWaveFile(
                     file,
-                    audioBuffer.toByteArray()
-            );
+                    audioBuffer.toByteArray());
 
             double averageRms = 0.0;
 
             if (rmsSampleCount > 0) {
-                averageRms =
-                        rmsSum / rmsSampleCount;
+                averageRms = rmsSum / rmsSampleCount;
             }
 
-            Transmission transmission =
-                    new Transmission(
-                            startTime,
-                            endTime,
-                            file,
-                            averageRms,
-                            maxRms
-                    );
+            Transmission transmission = new Transmission(
+                    startTime,
+                    endTime,
+                    file,
+                    averageRms,
+                    maxRms);
 
             System.out.println();
             System.out.println(
                     "Saved: "
-                            + file.toAbsolutePath()
-            );
+                            + file.toAbsolutePath());
 
             return transmission;
 
@@ -120,8 +109,7 @@ public class TransmissionRecorder {
 
             System.err.println(
                     "Unable to save recording: "
-                            + e.getMessage()
-            );
+                            + e.getMessage());
 
             return null;
 
@@ -133,18 +121,15 @@ public class TransmissionRecorder {
 
     private void writeWaveFile(
             Path file,
-            byte[] audioData
-    ) throws IOException {
+            byte[] audioData) throws IOException {
 
         int channels = format.getChannels();
         int sampleRate = (int) format.getSampleRate();
         int bitsPerSample = format.getSampleSizeInBits();
 
-        int byteRate =
-                sampleRate * channels * bitsPerSample / 8;
+        int byteRate = sampleRate * channels * bitsPerSample / 8;
 
-        int blockAlign =
-                channels * bitsPerSample / 8;
+        int blockAlign = channels * bitsPerSample / 8;
 
         int dataLength = audioData.length;
         int fileLength = 36 + dataLength;
@@ -177,8 +162,7 @@ public class TransmissionRecorder {
 
     private void writeIntLE(
             java.io.OutputStream output,
-            int value
-    ) throws IOException {
+            int value) throws IOException {
 
         output.write(value & 0xFF);
         output.write((value >> 8) & 0xFF);
@@ -188,8 +172,7 @@ public class TransmissionRecorder {
 
     private void writeShortLE(
             java.io.OutputStream output,
-            int value
-    ) throws IOException {
+            int value) throws IOException {
 
         output.write(value & 0xFF);
         output.write((value >> 8) & 0xFF);

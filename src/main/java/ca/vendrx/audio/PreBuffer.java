@@ -11,8 +11,7 @@ public class PreBuffer {
 
         if (capacityBytes <= 0) {
             throw new IllegalArgumentException(
-                    "capacityBytes must be greater than 0"
-            );
+                    "capacityBytes must be greater than 0");
         }
 
         buffer = new byte[capacityBytes];
@@ -24,8 +23,7 @@ public class PreBuffer {
 
             buffer[writePosition] = data[i];
 
-            writePosition =
-                    (writePosition + 1) % buffer.length;
+            writePosition = (writePosition + 1) % buffer.length;
 
             if (size < buffer.length) {
                 size++;
@@ -37,14 +35,12 @@ public class PreBuffer {
 
         byte[] result = new byte[size];
 
-        int start =
-                (writePosition - size + buffer.length)
-                        % buffer.length;
+        int start = (writePosition - size + buffer.length)
+                % buffer.length;
 
         for (int i = 0; i < size; i++) {
 
-            result[i] =
-                    buffer[(start + i) % buffer.length];
+            result[i] = buffer[(start + i) % buffer.length];
         }
 
         return result;

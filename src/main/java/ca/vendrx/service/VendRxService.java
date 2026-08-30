@@ -13,7 +13,7 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 
 public class VendRxService {
-        
+
     private final AudioConfig audioConfig;
     private final TransmissionRepository repository;
 
@@ -21,71 +21,53 @@ public class VendRxService {
     private Thread monitoringThread;
     private AudioMonitorListener listener;
 
-
     public void setAudioMonitorListener(
-            AudioMonitorListener listener
-    ) {
+            AudioMonitorListener listener) {
         this.listener = listener;
     }
 
     public VendRxService(
             AudioConfig audioConfig,
-            TransmissionRepository repository
-    ) {
+            TransmissionRepository repository) {
         this.audioConfig = audioConfig;
         this.repository = repository;
     }
 
     public synchronized void startMonitoring(
-            Mixer.Info mixerInfo
-    ) {
+            Mixer.Info mixerInfo) {
 
         if (isMonitoring()) {
             throw new IllegalStateException(
-                    "VendRx is already monitoring."
-            );
+                    "VendRx is already monitoring.");
         }
 
-        AudioFormat format =
-                audioConfig.createAudioFormat();
+        AudioFormat format = audioConfig.createAudioFormat();
 
-        TransmissionDetector detector =
-                new TransmissionDetector(
-                        audioConfig.getSignalThreshold(),
-                        audioConfig.getSilenceTimeoutMs()
-                );
+        TransmissionDetector detector = new TransmissionDetector(
+                audioConfig.getSignalThreshold(),
+                audioConfig.getSilenceTimeoutMs());
 
-        TransmissionRecorder recorder =
-                new TransmissionRecorder(format);
+        TransmissionRecorder recorder = new TransmissionRecorder(format);
 
-        int bytesPerSecond =
-                (int) (
-                        format.getSampleRate()
-                        * format.getFrameSize()
-                );
+        int bytesPerSecond = (int) (format.getSampleRate()
+                * format.getFrameSize());
 
-        PreBuffer preBuffer =
-                new PreBuffer(
-                        bytesPerSecond
-                        * audioConfig.getPreBufferSeconds()
-                );
+        PreBuffer preBuffer = new PreBuffer(
+                bytesPerSecond
+                        * audioConfig.getPreBufferSeconds());
 
-        monitor =
-                new AudioInputMonitor(
-                        mixerInfo,
-                        format,
-                        detector,
-                        recorder,
-                        preBuffer,
-                        repository,
-                        listener
-                );
+        monitor = new AudioInputMonitor(
+                mixerInfo,
+                format,
+                detector,
+                recorder,
+                preBuffer,
+                repository,
+                listener);
 
-        monitoringThread =
-                new Thread(
-                        this::runMonitor,
-                        "vendrx-audio-monitor"
-                );
+        monitoringThread = new Thread(
+                this::runMonitor,
+                "vendrx-audio-monitor");
 
         monitoringThread.start();
     }
@@ -113,8 +95,7 @@ public class VendRxService {
 
             System.err.println(
                     "Unable to open audio input: "
-                    + e.getMessage()
-            );
+                            + e.getMessage());
 
         } finally {
 

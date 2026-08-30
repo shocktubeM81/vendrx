@@ -9,7 +9,6 @@ public class Main {
 
         Application.launch(
                 VendRxApplication.class,
-                args
-        );
+                args);
     }
 }

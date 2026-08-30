@@ -25,8 +25,7 @@ public class Transmission {
             LocalDateTime endTime,
             Path filePath,
             double averageRms,
-            double maxRms
-    ) {
+            double maxRms) {
 
         this(
                 null,
@@ -34,8 +33,7 @@ public class Transmission {
                 endTime,
                 filePath,
                 averageRms,
-                maxRms
-        );
+                maxRms);
     }
 
     /*
@@ -48,8 +46,7 @@ public class Transmission {
             LocalDateTime endTime,
             Path filePath,
             double averageRms,
-            double maxRms
-    ) {
+            double maxRms) {
 
         this(
                 Long.valueOf(id),
@@ -57,8 +54,7 @@ public class Transmission {
                 endTime,
                 filePath,
                 averageRms,
-                maxRms
-        );
+                maxRms);
     }
 
     private Transmission(
@@ -67,8 +63,7 @@ public class Transmission {
             LocalDateTime endTime,
             Path filePath,
             double averageRms,
-            double maxRms
-    ) {
+            double maxRms) {
 
         this.id = id;
         this.startTime = startTime;
@@ -93,8 +88,7 @@ public class Transmission {
     public Duration getDuration() {
         return Duration.between(
                 startTime,
-                endTime
-        );
+                endTime);
     }
 
     public Path getFilePath() {

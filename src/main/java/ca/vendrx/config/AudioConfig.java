@@ -18,8 +18,7 @@ public class AudioConfig {
             int channels,
             double signalThreshold,
             long silenceTimeoutMs,
-            int preBufferSeconds
-    ) {
+            int preBufferSeconds) {
         this.sampleRate = sampleRate;
         this.sampleSizeBits = sampleSizeBits;
         this.channels = channels;
@@ -36,8 +35,7 @@ public class AudioConfig {
                 1,
                 0.20,
                 3000,
-                2
-        );
+                2);
     }
 
     public AudioFormat createAudioFormat() {
@@ -47,8 +45,7 @@ public class AudioConfig {
                 sampleSizeBits,
                 channels,
                 true,
-                false
-        );
+                false);
     }
 
     public float getSampleRate() {

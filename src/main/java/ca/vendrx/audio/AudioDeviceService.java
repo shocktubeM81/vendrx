@@ -20,8 +20,7 @@ public class AudioDeviceService {
             for (Line.Info lineInfo : mixer.getTargetLineInfo()) {
 
                 if (TargetDataLine.class.isAssignableFrom(
-                        lineInfo.getLineClass()
-                )) {
+                        lineInfo.getLineClass())) {
 
                     inputs.add(mixerInfo);
                     break;

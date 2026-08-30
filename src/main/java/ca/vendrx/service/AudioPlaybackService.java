@@ -22,13 +22,10 @@ public class AudioPlaybackService {
 
         stop();
 
-        AudioInputStream audioStream =
-                AudioSystem.getAudioInputStream(
-                        filePath.toFile()
-                );
+        AudioInputStream audioStream = AudioSystem.getAudioInputStream(
+                filePath.toFile());
 
-        Clip newClip =
-                AudioSystem.getClip();
+        Clip newClip = AudioSystem.getClip();
 
         newClip.addLineListener(event -> {
 
@@ -36,11 +33,8 @@ public class AudioPlaybackService {
 
                 synchronized (AudioPlaybackService.this) {
 
-                    if (
-                            clip == newClip
-                            && newClip.getFramePosition()
-                            >= newClip.getFrameLength()
-                    ) {
+                    if (clip == newClip
+                            && newClip.getFramePosition() >= newClip.getFrameLength()) {
 
                         newClip.close();
                         clip = null;
@@ -83,11 +77,9 @@ public class AudioPlaybackService {
     }
 
     public void setOnPlaybackStopped(
-            Runnable onPlaybackStopped
-    ) {
+            Runnable onPlaybackStopped) {
 
-        this.onPlaybackStopped =
-                onPlaybackStopped;
+        this.onPlaybackStopped = onPlaybackStopped;
     }
 
     private void notifyPlaybackStopped() {

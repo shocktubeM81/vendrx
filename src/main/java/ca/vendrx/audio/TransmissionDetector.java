@@ -16,8 +16,7 @@ public class TransmissionDetector {
 
     public TransmissionDetector(
             double threshold,
-            long silenceTimeoutMs
-    ) {
+            long silenceTimeoutMs) {
         this.threshold = threshold;
         this.silenceTimeoutMs = silenceTimeoutMs;
     }
@@ -48,9 +47,7 @@ public class TransmissionDetector {
 
                     lastSignalTime = now;
 
-                } else if (
-                        now - lastSignalTime >= silenceTimeoutMs
-                ) {
+                } else if (now - lastSignalTime >= silenceTimeoutMs) {
 
                     state = State.IDLE;
 

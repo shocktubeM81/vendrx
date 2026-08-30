@@ -5,6 +5,5 @@ import ca.vendrx.model.Transmission;
 public interface AudioMonitorListener {
 
     void onTransmissionSaved(
-            Transmission transmission
-    );
+            Transmission transmission);
 }

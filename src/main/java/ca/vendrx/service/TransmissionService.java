@@ -11,39 +11,32 @@ public class TransmissionService {
     private final TransmissionRepository repository;
 
     public TransmissionService(
-            TransmissionRepository repository
-    ) {
+            TransmissionRepository repository) {
 
-        this.repository =
-                repository;
+        this.repository = repository;
     }
 
     public void delete(
-            Transmission transmission
-    ) {
+            Transmission transmission) {
 
         if (transmission == null) {
             throw new IllegalArgumentException(
-                    "Transmission cannot be null."
-            );
+                    "Transmission cannot be null.");
         }
 
         try {
 
             Files.deleteIfExists(
-                    transmission.getFilePath()
-            );
+                    transmission.getFilePath());
 
         } catch (IOException e) {
 
             throw new RuntimeException(
                     "Unable to delete WAV file.",
-                    e
-            );
+                    e);
         }
 
         repository.delete(
-                transmission
-        );
+                transmission);
     }
 }
