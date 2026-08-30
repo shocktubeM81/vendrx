@@ -5,38 +5,30 @@ import ca.vendrx.model.Transmission;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
+import java.util.Objects;
 
-public class TransmissionService {
+public final class TransmissionService {
 
     private final TransmissionRepository repository;
 
-    public TransmissionService(
-            TransmissionRepository repository) {
-
-        this.repository = repository;
+    public TransmissionService(TransmissionRepository repository) {
+        this.repository = Objects.requireNonNull(repository);
     }
 
-    public void delete(
-            Transmission transmission) {
+    public List<Transmission> findRecent(int limit) {
+        return repository.findRecent(limit);
+    }
 
-        if (transmission == null) {
-            throw new IllegalArgumentException(
-                    "Transmission cannot be null.");
-        }
+    public void delete(Transmission transmission) {
+        Objects.requireNonNull(transmission, "Transmission cannot be null.");
 
         try {
-
-            Files.deleteIfExists(
-                    transmission.getFilePath());
-
+            Files.deleteIfExists(transmission.getFilePath());
         } catch (IOException e) {
-
-            throw new RuntimeException(
-                    "Unable to delete WAV file.",
-                    e);
+            throw new RuntimeException("Unable to delete WAV file.", e);
         }
 
-        repository.delete(
-                transmission);
+        repository.delete(transmission);
     }
 }
