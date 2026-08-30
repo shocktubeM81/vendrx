@@ -1,172 +1,62 @@
 package ca.vendrx.audio;
 
-import ca.vendrx.database.TransmissionRepository;
 import ca.vendrx.model.Transmission;
 
-import javax.sound.sampled.*;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.Mixer;
+import javax.sound.sampled.TargetDataLine;
+import java.util.Objects;
+import java.util.function.UnaryOperator;
 
-public class AudioInputMonitor {
+public final class AudioInputMonitor {
+
+    private static final int AUDIO_BUFFER_SIZE = 4096;
 
     private final Mixer.Info mixerInfo;
     private final AudioFormat format;
-
-    private final TransmissionDetector transmissionDetector;
-    private final TransmissionRecorder recorder;
-    private final PreBuffer preBuffer;
-    private final TransmissionRepository repository;
+    private final TransmissionProcessor transmissionProcessor;
+    private final UnaryOperator<Transmission> transmissionSaver;
     private final AudioMonitorListener listener;
 
-    private volatile boolean running = false;
+    private volatile boolean running;
     private volatile TargetDataLine line;
 
     public AudioInputMonitor(
             Mixer.Info mixerInfo,
             AudioFormat format,
-            TransmissionDetector transmissionDetector,
-            TransmissionRecorder recorder,
-            PreBuffer preBuffer,
-            TransmissionRepository repository,
+            TransmissionProcessor transmissionProcessor,
+            UnaryOperator<Transmission> transmissionSaver,
             AudioMonitorListener listener) {
-        this.mixerInfo = mixerInfo;
-        this.format = format;
-        this.transmissionDetector = transmissionDetector;
-        this.recorder = recorder;
-        this.preBuffer = preBuffer;
-        this.repository = repository;
+        this.mixerInfo = Objects.requireNonNull(mixerInfo);
+        this.format = Objects.requireNonNull(format);
+        this.transmissionProcessor = Objects.requireNonNull(transmissionProcessor);
+        this.transmissionSaver = Objects.requireNonNull(transmissionSaver);
         this.listener = listener;
     }
 
     public void start() throws LineUnavailableException {
-
-        Mixer mixer = AudioSystem.getMixer(mixerInfo);
-
-        DataLine.Info lineInfo = new DataLine.Info(
-                TargetDataLine.class,
-                format);
-
-        TargetDataLine activeLine = (TargetDataLine) mixer.getLine(lineInfo);
-
-        activeLine.open(format);
-        activeLine.start();
-
+        TargetDataLine activeLine = openInputLine();
         line = activeLine;
         running = true;
 
-        System.out.println();
-        System.out.println(
-                "Monitoring: " + mixerInfo.getName());
-        System.out.println(
-                "Ctrl+C to stop.");
-        System.out.println();
-
-        byte[] buffer = new byte[4096];
+        printMonitoringStarted();
 
         try {
-
-            while (running) {
-
-                int bytesRead;
-
-                try {
-
-                    bytesRead = activeLine.read(
-                            buffer,
-                            0,
-                            buffer.length);
-
-                } catch (IllegalStateException e) {
-
-                    if (!running) {
-                        break;
-                    }
-
-                    throw e;
-                }
-
-                if (bytesRead <= 0) {
-                    continue;
-                }
-
-                double rms = calculateRms(
-                        buffer,
-                        bytesRead);
-
-                TransmissionDetector.State previousState = transmissionDetector.getState();
-
-                transmissionDetector.update(rms);
-
-                TransmissionDetector.State currentState = transmissionDetector.getState();
-
-                if (previousState == TransmissionDetector.State.IDLE
-                        &&
-                        currentState == TransmissionDetector.State.RECORDING) {
-
-                    recorder.start();
-
-                    byte[] bufferedAudio = preBuffer.getAudio();
-
-                    recorder.append(
-                            bufferedAudio,
-                            bufferedAudio.length);
-                }
-
-                if (currentState == TransmissionDetector.State.RECORDING) {
-
-                    recorder.append(
-                            buffer,
-                            bytesRead);
-
-                    recorder.addRms(rms);
-                }
-
-                if (previousState == TransmissionDetector.State.RECORDING
-                        &&
-                        currentState == TransmissionDetector.State.IDLE) {
-
-                    saveCurrentTransmission();
-                }
-
-                if (currentState == TransmissionDetector.State.IDLE) {
-
-                    preBuffer.add(
-                            buffer,
-                            bytesRead);
-                }
-
-                printMeter(
-                        rms,
-                        currentState);
-            }
-
+            monitorAudio(activeLine);
         } finally {
-
-            running = false;
-            line = null;
-
-            if (activeLine.isRunning()) {
-                activeLine.stop();
-            }
-
-            if (activeLine.isOpen()) {
-                activeLine.close();
-            }
-
-            // Save a partial transmission if monitoring
-            // was stopped while recording.
-            saveCurrentTransmission();
-
-            System.out.println();
-            System.out.println(
-                    "Monitoring stopped.");
+            closeInputLine(activeLine);
+            saveTransmission(transmissionProcessor.finish());
+            System.out.println("\nMonitoring stopped.");
         }
     }
 
     public void stop() {
-
         running = false;
 
         TargetDataLine activeLine = line;
-
         if (activeLine != null) {
             activeLine.stop();
             activeLine.close();
@@ -177,69 +67,81 @@ public class AudioInputMonitor {
         return running;
     }
 
-    private void saveCurrentTransmission() {
+    private TargetDataLine openInputLine() throws LineUnavailableException {
+        Mixer mixer = AudioSystem.getMixer(mixerInfo);
+        DataLine.Info lineInfo = new DataLine.Info(TargetDataLine.class, format);
+        TargetDataLine activeLine = (TargetDataLine) mixer.getLine(lineInfo);
+        activeLine.open(format);
+        activeLine.start();
+        return activeLine;
+    }
 
-        Transmission transmission = recorder.stop();
+    private void monitorAudio(TargetDataLine activeLine) {
+        byte[] audioBuffer = new byte[AUDIO_BUFFER_SIZE];
 
-        if (transmission != null) {
-
-            Transmission savedTransmission = repository.save(
-                    transmission);
-
-            if (listener != null) {
-
-                listener.onTransmissionSaved(
-                        savedTransmission);
+        while (running) {
+            int bytesRead = readAudio(activeLine, audioBuffer);
+            if (bytesRead <= 0) {
+                continue;
             }
 
-            System.out.println();
-            System.out.println(
-                    savedTransmission);
+            double rms = PcmRmsCalculator.calculate16BitLittleEndian(audioBuffer, bytesRead);
+            Transmission completedTransmission = transmissionProcessor.process(
+                    audioBuffer,
+                    bytesRead,
+                    rms);
+
+            saveTransmission(completedTransmission);
+            printMeter(rms, transmissionProcessor.getState());
         }
     }
 
-    private double calculateRms(
-            byte[] buffer,
-            int length) {
-
-        double sum = 0.0;
-        int sampleCount = 0;
-
-        for (int i = 0; i < length - 1; i += 2) {
-
-            int low = buffer[i] & 0xFF;
-
-            int high = buffer[i + 1];
-
-            short sample = (short) ((high << 8)
-                    | low);
-
-            double normalized = sample / 32768.0;
-
-            sum += normalized
-                    * normalized;
-
-            sampleCount++;
+    private int readAudio(TargetDataLine activeLine, byte[] audioBuffer) {
+        try {
+            return activeLine.read(audioBuffer, 0, audioBuffer.length);
+        } catch (IllegalStateException e) {
+            if (!running) {
+                return -1;
+            }
+            throw e;
         }
-
-        if (sampleCount == 0) {
-            return 0.0;
-        }
-
-        return Math.sqrt(
-                sum / sampleCount);
     }
 
-    private void printMeter(
-            double rms,
-            TransmissionDetector.State state) {
+    private void saveTransmission(Transmission transmission) {
+        if (transmission == null) {
+            return;
+        }
 
-        int barCount = (int) (rms * 200);
+        Transmission savedTransmission = transmissionSaver.apply(transmission);
+        if (listener != null) {
+            listener.onTransmissionSaved(savedTransmission);
+        }
 
-        barCount = Math.min(
-                barCount,
-                50);
+        System.out.println();
+        System.out.println(savedTransmission);
+    }
 
+    private void closeInputLine(TargetDataLine activeLine) {
+        running = false;
+        line = null;
+
+        if (activeLine.isRunning()) {
+            activeLine.stop();
+        }
+        if (activeLine.isOpen()) {
+            activeLine.close();
+        }
+    }
+
+    private void printMonitoringStarted() {
+        System.out.println();
+        System.out.println("Monitoring: " + mixerInfo.getName());
+        System.out.println("Ctrl+C to stop.");
+        System.out.println();
+    }
+
+    private void printMeter(double rms, TransmissionDetector.State state) {
+        int barCount = Math.min((int) (rms * 200), 50);
         String bar = "#".repeat(barCount);
 
         System.out.printf(

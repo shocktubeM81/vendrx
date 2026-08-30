@@ -4,6 +4,7 @@ import ca.vendrx.audio.AudioInputMonitor;
 import ca.vendrx.audio.AudioMonitorListener;
 import ca.vendrx.audio.PreBuffer;
 import ca.vendrx.audio.TransmissionDetector;
+import ca.vendrx.audio.TransmissionProcessor;
 import ca.vendrx.audio.TransmissionRecorder;
 import ca.vendrx.config.AudioConfig;
 import ca.vendrx.database.TransmissionRepository;
@@ -56,13 +57,16 @@ public class VendRxService {
                 bytesPerSecond
                         * audioConfig.getPreBufferSeconds());
 
+        TransmissionProcessor transmissionProcessor = new TransmissionProcessor(
+                detector,
+                recorder,
+                preBuffer);
+
         monitor = new AudioInputMonitor(
                 mixerInfo,
                 format,
-                detector,
-                recorder,
-                preBuffer,
-                repository,
+                transmissionProcessor,
+                repository::save,
                 listener);
 
         monitoringThread = new Thread(
